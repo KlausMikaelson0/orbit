@@ -1,10 +1,14 @@
-import type { NextConfig } from "next";
+const isDesktopExport = process.env.ORBIT_DESKTOP_EXPORT === "1";
 
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react"],
   },
+  output: isDesktopExport ? "export" : undefined,
+  trailingSlash: isDesktopExport,
   images: {
+    unoptimized: isDesktopExport,
     remotePatterns: [
       {
         protocol: "https",

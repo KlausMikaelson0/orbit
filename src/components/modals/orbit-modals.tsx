@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { SwipeDismissable } from "@/components/ui/swipe-dismissable";
 import { Textarea } from "@/components/ui/textarea";
 import { useModal } from "@/src/hooks/use-modal";
+import { useOrbitRuntime } from "@/src/hooks/use-orbit-runtime";
 import { getOrbitSupabaseClient } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type { ChannelType } from "@/src/types/orbit";
@@ -65,6 +66,7 @@ export function OrbitModals({
     qrCode: string;
     secret: string;
   } | null>(null);
+  const { isElectron, platformLabel } = useOrbitRuntime();
   const { themePreset, customThemeCss, setThemePreset, setCustomThemeCss } =
     useOrbitNavStore((state) => ({
       themePreset: state.themePreset,
@@ -440,6 +442,31 @@ export function OrbitModals({
                     Custom CSS is injected only when the Custom CSS theme is active.
                   </p>
                 </div>
+              </section>
+
+              <section className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
+                    Runtime
+                  </p>
+                  {isElectron ? (
+                    <span className="rounded-full border border-cyan-400/35 bg-cyan-500/15 px-2.5 py-1 text-[10px] uppercase tracking-wide text-cyan-100">
+                      Desktop App
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-white/15 bg-white/[0.04] px-2.5 py-1 text-[10px] uppercase tracking-wide text-zinc-300">
+                      Browser
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-zinc-200">
+                  Running on: {platformLabel}
+                </p>
+                <p className="text-xs text-zinc-400">
+                  {isElectron
+                    ? "Orbit desktop mode is active with tray persistence."
+                    : "Install Orbit from the landing page to unlock desktop runtime."}
+                </p>
               </section>
 
               <section className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-3">

@@ -1,6 +1,6 @@
 "use client";
 
-import { createBrowserClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const supabaseUrl =
@@ -17,7 +17,14 @@ let cachedClient: SupabaseClient | null = null;
 
 export function getOrbitSupabaseClient() {
   if (!cachedClient) {
-    cachedClient = createBrowserClient(supabaseUrl, supabaseAnonKey);
+    cachedClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storage: typeof window !== "undefined" ? window.localStorage : undefined,
+      },
+    });
   }
 
   return cachedClient;

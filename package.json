@@ -1,12 +1,17 @@
 {
   "name": "discord-clone",
   "version": "0.1.0",
+  "main": "main.js",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "desktop-export": "node ./scripts/desktop-export.mjs",
+    "electron-run": "electron .",
+    "electron-dev": "concurrently -k \"npm run dev\" \"npm run electron-run\"",
+    "electron-build": "npm run desktop-export && electron-builder"
   },
   "dependencies": {
     "@livekit/components-react": "^2.9.20",
@@ -39,9 +44,46 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.2.1",
+    "electron": "^40.6.0",
+    "electron-builder": "^26.8.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "build": {
+    "appId": "com.orbit.desktop",
+    "productName": "Orbit",
+    "directories": {
+      "output": "release"
+    },
+    "asar": true,
+    "files": [
+      "main.js",
+      "preload.js",
+      "package.json",
+      "public/**/*",
+      "out/**/*"
+    ],
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.social-networking"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    },
+    "extraMetadata": {
+      "main": "main.js"
+    }
   }
 }

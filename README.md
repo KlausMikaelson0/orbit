@@ -54,6 +54,7 @@ Orbit is a realtime productivity-social platform built in phases:
 - **Rate limiting** for AI + webhook APIs and client send pacing
 - **Image moderation mock** for uploads and webhook attachments
 - **PWA icon pack** for iOS/Android install experience
+- **Electron desktop runtime** (system tray, frameless shell, unified web/desktop UX)
 
 ## Local development
 
@@ -62,6 +63,28 @@ npm install
 cp .env.example .env.local
 npm run dev
 ```
+
+## Desktop development (Electron)
+
+Run Orbit web + Electron shell together:
+
+```bash
+npm run electron-dev
+```
+
+Desktop static export bundle (for Electron packaging):
+
+```bash
+npm run desktop-export
+```
+
+Build installables via electron-builder:
+
+```bash
+npm run electron-build
+```
+
+This generates artifacts in `release/` (e.g. NSIS `.exe`, macOS `.dmg`).
 
 ## Environment variables
 
@@ -119,6 +142,13 @@ Orbit ships with:
 - runtime registration via `OrbitPwaRegister`
 
 Users can install Orbit from supported browsers (desktop + mobile).
+
+## Hybrid platform notes
+
+- Electron entrypoint: `main.js`
+- Desktop bridge: `preload.js`
+- Next desktop export mode is controlled by `ORBIT_DESKTOP_EXPORT=1` in `next.config.mjs`
+- Supabase browser client is configured to persist sessions in `localStorage`
 
 ## Orbit Developer API (Webhook Bots)
 
