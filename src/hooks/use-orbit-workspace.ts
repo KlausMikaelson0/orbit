@@ -349,6 +349,19 @@ export function useOrbitWorkspace(user: User | null) {
         } satisfies WorkspaceActionResult;
       }
 
+      const { data: banRow } = await supabase
+        .from("server_bans")
+        .select("id")
+        .eq("server_id", server.id)
+        .eq("profile_id", user.id)
+        .maybeSingle();
+
+      if (banRow) {
+        return {
+          error: "You are banned from this server.",
+        } satisfies WorkspaceActionResult;
+      }
+
       const { data: existingMember } = await supabase
         .from("members")
         .select("*")

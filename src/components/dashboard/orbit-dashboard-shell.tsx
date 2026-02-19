@@ -4,19 +4,12 @@ import { ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
-import {
-  Bot,
-  Loader2,
-  LogOut,
-  Orbit,
-  Sparkles,
-  UserPlus,
-  WandSparkles,
-} from "lucide-react";
+import { Loader2, LogOut, Orbit, Sparkles, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { OrbitModals } from "@/src/components/modals/orbit-modals";
 import { ChannelSidebar } from "@/src/components/sidebar/channel-sidebar";
+import { MembersSidebar } from "@/src/components/sidebar/members-sidebar";
 import { ServerSidebar } from "@/src/components/sidebar/server-sidebar";
 import { useModal } from "@/src/hooks/use-modal";
 import { useOrbitWorkspace } from "@/src/hooks/use-orbit-workspace";
@@ -34,7 +27,7 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
   const [loading, setLoading] = useState(true);
   const { onOpen } = useModal();
   const navSummary = useOrbitNavStore((state) => state.getSummary());
-  const { loadingServers, loadingChannels, createServer, createChannel, joinServerByInvite } =
+  const { loadingServers, createServer, createChannel, joinServerByInvite } =
     useOrbitWorkspace(session?.user ?? null);
 
   useEffect(() => {
@@ -152,47 +145,7 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
           </div>
         </section>
 
-        <aside className="glass-panel hidden w-[320px] shrink-0 rounded-[1.75rem] p-4 xl:block">
-          <div className="mb-4 rounded-2xl border border-violet-400/30 bg-violet-500/10 p-4">
-            <p className="text-xs uppercase tracking-[0.14em] text-violet-200">AI-ready rail</p>
-            <h2 className="mt-1 text-lg font-semibold">Orbit Pulse</h2>
-            <p className="mt-2 text-sm text-zinc-300">
-              Context engines, summaries, and action suggestions dock here.
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-              <div className="mb-2 flex items-center gap-2 text-violet-200">
-                <Sparkles className="h-4 w-4" />
-                <p className="text-sm font-medium">Workspace Sync</p>
-              </div>
-              <p className="text-xs leading-relaxed text-zinc-300">
-                {loadingChannels
-                  ? "Refreshing active channel state..."
-                  : "Channel transitions stay instant with cached message timelines."}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-              <div className="mb-2 flex items-center gap-2 text-violet-200">
-                <Bot className="h-4 w-4" />
-                <p className="text-sm font-medium">Neural Insight</p>
-              </div>
-              <p className="text-xs leading-relaxed text-zinc-300">
-                Launch-control thread velocity has increased 28% in the last 6 hours.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-              <div className="mb-2 flex items-center gap-2 text-violet-200">
-                <WandSparkles className="h-4 w-4" />
-                <p className="text-sm font-medium">Suggested Automation</p>
-              </div>
-              <p className="text-xs leading-relaxed text-zinc-300">
-                Convert repetitive standup updates into an async digest workflow.
-              </p>
-            </div>
-          </div>
-        </aside>
+        <MembersSidebar user={session.user} />
       </div>
 
       <OrbitModals

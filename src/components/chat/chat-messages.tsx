@@ -1,19 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Orbit } from "lucide-react";
+import { FileText, Loader2, Orbit } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { formatTime } from "@/lib/utils";
+import { formatTime, isImageAttachment, isPdfAttachment } from "@/lib/utils";
 import { getOrbitSupabaseClient } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
-import type {
-  OrbitMember,
-  OrbitMessage,
-  OrbitMessageView,
-  OrbitProfile,
-} from "@/src/types/orbit";
+import type { OrbitMessage, OrbitMessageView } from "@/src/types/orbit";
 
 interface ChatMessagesProps {
   channelId: string | null;
@@ -31,44 +26,49 @@ export function ChatMessages({ channelId }: ChatMessagesProps) {
   const upsertMessage = useOrbitNavStore((state) => state.upsertMessage);
   const removeMessage = useOrbitNavStore((state) => state.removeMessage);
 
-  const hydrateMessages = useCallback(
-    async (rows: OrbitMessage[]) => {
-      if (!rows.length) {
-        return [] as OrbitMessageView[];
-      }
+  const hydrateRows = useCallback((rows: unknown[]) => {
+    return rows.map((row) => {
+      const source = row as {
+        id: string;
+        content: string | null;
+        file_url: string | null;
+        member_id: string;
+        channel_id: string;
+        created_at: string;
+        updated_at: string;
+        member?: {
+          id: string;
+          role: "ADMIN" | "MODERATOR" | "GUEST";
+          profile_id: string;
+          server_id: string;
+          created_at: string;
+          updated_at: string;
+          profile?: {
+            id: string;
+            username: string | null;
+            full_name: string | null;
+            avatar_url: string | null;
+            created_at: string;
+            updated_at: string;
+          } | null;
+        } | null;
+      };
 
-      const memberIds = Array.from(new Set(rows.map((row) => row.member_id)));
-      const { data: memberData } = await supabase
-        .from("members")
-        .select("*")
-        .in("id", memberIds);
-      const members = (memberData ?? []) as OrbitMember[];
-      const membersById = new Map(members.map((member) => [member.id, member]));
-
-      const profileIds = Array.from(
-        new Set(members.map((member) => member.profile_id)),
-      );
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("*")
-        .in("id", profileIds);
-      const profiles = (profileData ?? []) as OrbitProfile[];
-      const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
-
-      return rows.map((row) => {
-        const member = membersById.get(row.member_id) ?? null;
-        const profile = member ? profilesById.get(member.profile_id) ?? null : null;
-        return {
-          ...row,
-          author: {
-            member,
-            profile,
-          },
-        };
-      });
-    },
-    [supabase],
-  );
+      return {
+        id: source.id,
+        content: source.content,
+        file_url: source.file_url,
+        member_id: source.member_id,
+        channel_id: source.channel_id,
+        created_at: source.created_at,
+        updated_at: source.updated_at,
+        author: {
+          member: source.member ?? null,
+          profile: source.member?.profile ?? null,
+        },
+      } satisfies OrbitMessageView;
+    });
+  }, []);
 
   const fetchMessages = useCallback(async () => {
     if (!channelId) {
@@ -78,44 +78,40 @@ export function ChatMessages({ channelId }: ChatMessagesProps) {
     setLoading(true);
     const { data } = await supabase
       .from("messages")
-      .select("*")
+      .select(
+        "id, content, file_url, member_id, channel_id, created_at, updated_at, member:members(id, role, profile_id, server_id, created_at, updated_at, profile:profiles(id, username, full_name, avatar_url, created_at, updated_at))",
+      )
       .eq("channel_id", channelId)
       .order("created_at", { ascending: true })
       .limit(300);
 
-    const hydrated = await hydrateMessages((data ?? []) as OrbitMessage[]);
-    setMessages(channelId, hydrated);
+    setMessages(channelId, hydrateRows(data ?? []));
     setLoading(false);
-  }, [channelId, hydrateMessages, setMessages, supabase]);
+  }, [channelId, hydrateRows, setMessages, supabase]);
 
   const hydrateSingleMessage = useCallback(
     async (row: OrbitMessage) => {
-      const { data: memberData } = await supabase
-        .from("members")
-        .select("*")
-        .eq("id", row.member_id)
+      const { data } = await supabase
+        .from("messages")
+        .select(
+          "id, content, file_url, member_id, channel_id, created_at, updated_at, member:members(id, role, profile_id, server_id, created_at, updated_at, profile:profiles(id, username, full_name, avatar_url, created_at, updated_at))",
+        )
+        .eq("id", row.id)
         .maybeSingle();
-      const member = (memberData ?? null) as OrbitMember | null;
 
-      let profile: OrbitProfile | null = null;
-      if (member) {
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", member.profile_id)
-          .maybeSingle();
-        profile = (profileData ?? null) as OrbitProfile | null;
+      if (!data) {
+        return {
+          ...row,
+          author: {
+            member: null,
+            profile: null,
+          },
+        } satisfies OrbitMessageView;
       }
 
-      return {
-        ...row,
-        author: {
-          member,
-          profile,
-        },
-      } satisfies OrbitMessageView;
+      return hydrateRows([data])[0];
     },
-    [supabase],
+    [hydrateRows, supabase],
   );
 
   useEffect(() => {
@@ -231,24 +227,16 @@ export function ChatMessages({ channelId }: ChatMessagesProps) {
                   </span>
                 ) : null}
               </div>
+
               {message.content ? (
                 <p className="text-sm leading-relaxed text-zinc-200">{message.content}</p>
               ) : null}
-              {message.file_url ? (
-                <a
-                  className="mt-2 inline-flex text-xs text-violet-300 hover:text-violet-200"
-                  href={message.file_url}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  Open attachment
-                </a>
-              ) : null}
+              {message.file_url ? <AttachmentPreview message={message} /> : null}
             </article>
           );
         })}
 
-        {loading ? (
+        {loading && messages.length === 0 ? (
           <div className="flex items-center justify-center py-8 text-zinc-400">
             <Loader2 className="h-4 w-4 animate-spin" />
           </div>
@@ -263,5 +251,66 @@ export function ChatMessages({ channelId }: ChatMessagesProps) {
         <div ref={messagesEndRef} />
       </div>
     </ScrollArea>
+  );
+}
+
+function AttachmentPreview({ message }: { message: OrbitMessageView }) {
+  const fileUrl = message.file_url;
+  const attachmentName = message.attachment?.name ?? "Attachment";
+  const isPending = fileUrl?.startsWith("pending://") ?? false;
+  const resolvedUrl = isPending ? null : fileUrl;
+  const isImage =
+    isImageAttachment(resolvedUrl) || message.attachment?.mimeType.startsWith("image/");
+  const isPdf =
+    isPdfAttachment(resolvedUrl) || message.attachment?.mimeType === "application/pdf";
+
+  if (!fileUrl) {
+    return null;
+  }
+
+  if (isPending) {
+    return (
+      <div className="mt-2 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-zinc-300">
+        <FileText className="h-4 w-4 text-violet-300" />
+        Uploading {attachmentName}
+      </div>
+    );
+  }
+
+  if (isImage) {
+    return (
+      <a href={resolvedUrl ?? ""} rel="noreferrer" target="_blank">
+        <img
+          alt={attachmentName}
+          className="mt-2 max-h-72 rounded-lg border border-white/10 object-cover"
+          src={resolvedUrl ?? ""}
+        />
+      </a>
+    );
+  }
+
+  if (isPdf) {
+    return (
+      <a
+        className="mt-2 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-violet-200 hover:bg-white/[0.08]"
+        href={resolvedUrl ?? ""}
+        rel="noreferrer"
+        target="_blank"
+      >
+        <FileText className="h-4 w-4" />
+        Open PDF
+      </a>
+    );
+  }
+
+  return (
+    <a
+      className="mt-2 inline-flex text-xs text-violet-300 hover:text-violet-200"
+      href={resolvedUrl ?? ""}
+      rel="noreferrer"
+      target="_blank"
+    >
+      Open attachment
+    </a>
   );
 }

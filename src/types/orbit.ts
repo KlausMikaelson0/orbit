@@ -53,9 +53,15 @@ export interface OrbitMessageAuthor {
   profile: OrbitProfile | null;
 }
 
+export interface OrbitAttachmentMeta {
+  name: string;
+  mimeType: string;
+}
+
 export interface OrbitMessageView extends OrbitMessage {
   author: OrbitMessageAuthor;
   optimistic?: boolean;
+  attachment?: OrbitAttachmentMeta | null;
 }
 
 export interface OrbitNavSummary {
@@ -66,4 +72,10 @@ export interface OrbitNavSummary {
 export interface OrbitServerMembership {
   member: OrbitMember;
   server: OrbitServer;
+}
+
+export interface OrbitMemberWithProfile {
+  member: OrbitMember;
+  profile: OrbitProfile | null;
+  online: boolean;
 }
