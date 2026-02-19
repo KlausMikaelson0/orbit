@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Plus, Sparkles, UserPlus } from "lucide-react";
+import { Home, Plus, Sparkles, UserPlus } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -17,25 +17,65 @@ import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 
 interface ServerSidebarProps {
   loading?: boolean;
+  mobile?: boolean;
+  onNavigate?: () => void;
 }
 
-export function ServerSidebar({ loading = false }: ServerSidebarProps) {
-  const { servers, activeServerId, setActiveServer } = useOrbitNavStore((state) => ({
+export function ServerSidebar({
+  loading = false,
+  mobile = false,
+  onNavigate,
+}: ServerSidebarProps) {
+  const { activeView, servers, activeServerId, setActiveServer, setActiveHome } =
+    useOrbitNavStore((state) => ({
+      activeView: state.activeView,
     servers: state.servers,
     activeServerId: state.activeServerId,
     setActiveServer: state.setActiveServer,
-  }));
+      setActiveHome: state.setActiveHome,
+    }));
   const { onOpen } = useModal();
+  const homeActive =
+    activeView === "DM_HOME" || activeView === "FRIENDS" || activeView === "DM_THREAD";
 
   return (
-    <aside className="glass-panel h-full w-[88px] rounded-[1.75rem] border border-white/10 p-2">
+    <aside
+      className={`glass-panel h-full rounded-[1.75rem] border border-white/10 p-2 ${
+        mobile ? "w-full" : "w-[88px]"
+      }`}
+    >
       <TooltipProvider>
-        <div className="mb-2 flex flex-col items-center gap-2">
+        <div className={`mb-2 flex gap-2 ${mobile ? "flex-row" : "flex-col items-center"}`}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                className={`h-10 w-10 rounded-2xl border ${
+                  homeActive
+                    ? "border-violet-300/60 bg-violet-500/20 text-violet-100"
+                    : "border-violet-400/30 bg-white/[0.04] text-violet-100 hover:bg-violet-500/20"
+                }`}
+                onClick={() => {
+                  setActiveHome();
+                  onNavigate?.();
+                }}
+                size="icon"
+                variant="ghost"
+              >
+                <Home className="h-4 w-4" />
+                <span className="sr-only">Home</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side={mobile ? "bottom" : "right"}>Home</TooltipContent>
+          </Tooltip>
+
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 className="h-10 w-10 rounded-2xl border border-violet-400/40 bg-violet-500/15 text-violet-200 hover:bg-violet-500/25"
-                onClick={() => onOpen("createServer")}
+                onClick={() => {
+                  onOpen("createServer");
+                  onNavigate?.();
+                }}
                 size="icon"
                 variant="ghost"
               >
@@ -50,7 +90,10 @@ export function ServerSidebar({ loading = false }: ServerSidebarProps) {
             <TooltipTrigger asChild>
               <Button
                 className="h-10 w-10 rounded-2xl border border-violet-400/30 bg-white/[0.04] text-violet-100 hover:bg-violet-500/20"
-                onClick={() => onOpen("joinServer")}
+                onClick={() => {
+                  onOpen("joinServer");
+                  onNavigate?.();
+                }}
                 size="icon"
                 variant="ghost"
               >
@@ -63,7 +106,7 @@ export function ServerSidebar({ loading = false }: ServerSidebarProps) {
         </div>
 
         <ScrollArea className="h-[calc(100%-6.25rem)]">
-          <div className="space-y-2 px-0.5">
+          <div className={`space-y-2 px-0.5 ${mobile ? "grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-2" : ""}`}>
             {servers.map((server) => {
               const active = server.id === activeServerId;
               return (
@@ -75,7 +118,10 @@ export function ServerSidebar({ loading = false }: ServerSidebarProps) {
                           ? "border-violet-300/60 bg-violet-500/20 text-white"
                           : "border-transparent bg-white/[0.04] text-zinc-200 hover:border-white/10 hover:bg-white/[0.08]"
                       }`}
-                      onClick={() => setActiveServer(server.id)}
+                      onClick={() => {
+                        setActiveServer(server.id);
+                        onNavigate?.();
+                      }}
                       type="button"
                       whileTap={{ scale: 0.96 }}
                     >

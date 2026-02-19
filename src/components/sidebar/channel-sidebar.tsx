@@ -20,82 +20,179 @@ function channelTypeLabel(type: ChannelType) {
   return "Video";
 }
 
-export function ChannelSidebar() {
+interface ChannelSidebarProps {
+  mobile?: boolean;
+  onNavigate?: () => void;
+}
+
+export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarProps) {
   const { onOpen } = useModal();
-  const { servers, channelsByServer, activeServerId, activeChannelId, setActiveChannel } =
-    useOrbitNavStore((state) => ({
+  const {
+    activeView,
+    servers,
+    channelsByServer,
+    dmConversations,
+    onlineProfileIds,
+    activeServerId,
+    activeChannelId,
+    activeDmThreadId,
+    setActiveChannel,
+    setActiveFriends,
+    setActiveDmThread,
+  } = useOrbitNavStore((state) => ({
+      activeView: state.activeView,
       servers: state.servers,
       channelsByServer: state.channelsByServer,
+      dmConversations: state.dmConversations,
+      onlineProfileIds: state.onlineProfileIds,
       activeServerId: state.activeServerId,
       activeChannelId: state.activeChannelId,
+      activeDmThreadId: state.activeDmThreadId,
       setActiveChannel: state.setActiveChannel,
+      setActiveFriends: state.setActiveFriends,
+      setActiveDmThread: state.setActiveDmThread,
     }));
 
   const activeServer = servers.find((server) => server.id === activeServerId) ?? null;
   const channels = activeServerId ? channelsByServer[activeServerId] ?? [] : [];
+  const isServerView = activeView === "SERVER";
+  const isHomeView =
+    activeView === "DM_HOME" || activeView === "DM_THREAD" || activeView === "FRIENDS";
 
   return (
-    <aside className="glass-panel h-full w-[300px] rounded-[1.75rem] border border-white/10 p-3">
+    <aside
+      className={`glass-panel h-full rounded-[1.75rem] border border-white/10 p-3 ${
+        mobile ? "w-full" : "w-[300px]"
+      }`}
+    >
       <div className="mb-3 rounded-2xl border border-white/10 bg-black/25 p-3">
         <p className="truncate text-sm font-semibold text-violet-100">
-          {activeServer?.name ?? "Select a server"}
+          {isServerView ? activeServer?.name ?? "Select a server" : "Home"}
         </p>
         <p className="mt-1 truncate text-xs text-zinc-400">
-          {activeServer ? `Invite: ${activeServer.invite_code}` : "Join or create a server"}
+          {isServerView
+            ? activeServer
+              ? `Invite: ${activeServer.invite_code}`
+              : "Join or create a server"
+            : "Direct messages and friends"}
         </p>
       </div>
 
       <div className="mb-2 flex items-center justify-between px-1">
-        <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">Channels</p>
-        <Button
-          className="h-7 w-7 rounded-full"
-          disabled={!activeServerId}
-          onClick={() => onOpen("createChannel", { serverId: activeServerId ?? undefined })}
-          size="icon"
-          variant="ghost"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          <span className="sr-only">Create channel</span>
-        </Button>
+        <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">
+          {isServerView ? "Channels" : "Direct Messages"}
+        </p>
+        {isServerView ? (
+          <Button
+            className="h-7 w-7 rounded-full"
+            disabled={!activeServerId}
+            onClick={() => {
+              onOpen("createChannel", { serverId: activeServerId ?? undefined });
+              onNavigate?.();
+            }}
+            size="icon"
+            variant="ghost"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span className="sr-only">Create channel</span>
+          </Button>
+        ) : (
+          <Button
+            className="rounded-full px-3"
+            onClick={() => {
+              setActiveFriends();
+              onNavigate?.();
+            }}
+            size="sm"
+            variant={activeView === "FRIENDS" ? "default" : "secondary"}
+          >
+            Friends
+          </Button>
+        )}
       </div>
 
       <ScrollArea className="h-[calc(100%-7.5rem)]">
         <div className="space-y-1">
-          {channels.map((channel) => {
-            const Icon = channelTypeIcon[channel.type];
-            const active = channel.id === activeChannelId;
+          {isServerView
+            ? channels.map((channel) => {
+                const Icon = channelTypeIcon[channel.type];
+                const active = channel.id === activeChannelId;
 
-            return (
-              <button
-                className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-sm transition ${
-                  active
-                    ? "bg-violet-500/20 text-violet-100"
-                    : "text-zinc-300 hover:bg-white/[0.07]"
-                }`}
-                key={channel.id}
-                onClick={() => setActiveChannel(channel.id)}
-                type="button"
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <Icon className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{channel.name}</span>
-                </span>
-                <span className="text-[10px] uppercase tracking-wide text-zinc-500">
-                  {channelTypeLabel(channel.type)}
-                </span>
-              </button>
-            );
-          })}
+                return (
+                  <button
+                    className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-sm transition ${
+                      active
+                        ? "bg-violet-500/20 text-violet-100"
+                        : "text-zinc-300 hover:bg-white/[0.07]"
+                    }`}
+                    key={channel.id}
+                    onClick={() => {
+                      setActiveChannel(channel.id);
+                      onNavigate?.();
+                    }}
+                    type="button"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{channel.name}</span>
+                    </span>
+                    <span className="text-[10px] uppercase tracking-wide text-zinc-500">
+                      {channelTypeLabel(channel.type)}
+                    </span>
+                  </button>
+                );
+              })
+            : dmConversations.map((conversation) => {
+                const active = conversation.thread.id === activeDmThreadId;
+                const label =
+                  conversation.otherProfile.full_name ??
+                  conversation.otherProfile.username ??
+                  "Orbit User";
+                const online = onlineProfileIds.includes(conversation.otherProfile.id);
+                return (
+                  <button
+                    className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-sm transition ${
+                      active
+                        ? "bg-violet-500/20 text-violet-100"
+                        : "text-zinc-300 hover:bg-white/[0.07]"
+                    }`}
+                    key={conversation.thread.id}
+                    onClick={() => {
+                      setActiveDmThread(conversation.thread.id);
+                      onNavigate?.();
+                    }}
+                    type="button"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate">{label}</span>
+                      <span className="block truncate text-[11px] text-zinc-500">
+                        {conversation.lastMessage?.content ?? "No messages yet"}
+                      </span>
+                    </span>
+                    <span
+                      className={`h-2.5 w-2.5 rounded-full ${
+                        online ? "bg-emerald-400" : "bg-zinc-600"
+                      }`}
+                    />
+                  </button>
+                );
+              })}
 
-          {!activeServer ? (
+          {isServerView && !activeServer ? (
             <div className="rounded-xl border border-dashed border-white/10 p-3 text-xs text-zinc-500">
               Pick a server to load its channels.
             </div>
           ) : null}
 
-          {activeServer && channels.length === 0 ? (
+          {isServerView && activeServer && channels.length === 0 ? (
             <div className="rounded-xl border border-dashed border-white/10 p-3 text-xs text-zinc-500">
               No channels yet. Create one to start messaging.
+            </div>
+          ) : null}
+
+          {isHomeView && dmConversations.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-white/10 p-3 text-xs text-zinc-500">
+              No direct messages yet. Open Friends to start one.
             </div>
           ) : null}
         </div>

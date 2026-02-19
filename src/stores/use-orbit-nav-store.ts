@@ -2,38 +2,65 @@ import { create } from "zustand";
 
 import type {
   OrbitChannel,
+  OrbitDmConversation,
   OrbitMember,
   OrbitMessageView,
   OrbitNavSummary,
   OrbitProfile,
+  OrbitRelationship,
   OrbitServer,
   OrbitServerMembership,
+  OrbitViewMode,
 } from "@/src/types/orbit";
 
 interface OrbitNavState {
   collapsed: boolean;
   profile: OrbitProfile | null;
+  activeView: OrbitViewMode;
   servers: OrbitServer[];
   membershipsByServer: Record<string, OrbitMember>;
   channelsByServer: Record<string, OrbitChannel[]>;
+  dmConversations: OrbitDmConversation[];
+  relationships: OrbitRelationship[];
+  onlineProfileIds: string[];
   messageCache: Record<string, OrbitMessageView[]>;
   activeServerId: string | null;
   activeChannelId: string | null;
+  activeDmThreadId: string | null;
+  privacyMode: boolean;
+  mobilePanels: {
+    servers: boolean;
+    context: boolean;
+    members: boolean;
+  };
   setProfile: (profile: OrbitProfile) => void;
   setServersWithMemberships: (rows: OrbitServerMembership[]) => void;
   setChannels: (serverId: string, channels: OrbitChannel[]) => void;
+  setDmConversations: (rows: OrbitDmConversation[]) => void;
+  upsertDmConversation: (row: OrbitDmConversation) => void;
+  setRelationships: (rows: OrbitRelationship[]) => void;
+  setOnlineProfileIds: (ids: string[]) => void;
   upsertServer: (server: OrbitServer, member?: OrbitMember) => void;
   upsertChannel: (channel: OrbitChannel) => void;
-  setMessages: (channelId: string, messages: OrbitMessageView[]) => void;
-  upsertMessage: (channelId: string, message: OrbitMessageView) => void;
+  setMessages: (conversationKey: string, messages: OrbitMessageView[]) => void;
+  upsertMessage: (conversationKey: string, message: OrbitMessageView) => void;
   replaceMessage: (
-    channelId: string,
+    conversationKey: string,
     tempId: string,
     message: OrbitMessageView,
   ) => void;
-  removeMessage: (channelId: string, messageId: string) => void;
+  removeMessage: (conversationKey: string, messageId: string) => void;
   setCollapsed: (collapsed: boolean) => void;
   toggleCollapsed: () => void;
+  setPrivacyMode: (value: boolean) => void;
+  togglePrivacyMode: () => void;
+  setMobilePanelOpen: (
+    panel: keyof OrbitNavState["mobilePanels"],
+    open: boolean,
+  ) => void;
+  setActiveHome: () => void;
+  setActiveFriends: () => void;
+  setActiveDmThread: (threadId: string | null) => void;
   setActiveServer: (serverId: string | null) => void;
   setActiveChannel: (channelId: string | null) => void;
   getSummary: () => OrbitNavSummary;
@@ -46,12 +73,23 @@ function sortByCreatedAt<T extends { created_at: string }>(rows: T[]) {
 export const useOrbitNavStore = create<OrbitNavState>((set, get) => ({
   collapsed: false,
   profile: null,
+  activeView: "DM_HOME",
   servers: [],
   membershipsByServer: {},
   channelsByServer: {},
+  dmConversations: [],
+  relationships: [],
+  onlineProfileIds: [],
   messageCache: {},
   activeServerId: null,
   activeChannelId: null,
+  activeDmThreadId: null,
+  privacyMode: false,
+  mobilePanels: {
+    servers: false,
+    context: false,
+    members: false,
+  },
   setProfile: (profile) => set({ profile }),
   setServersWithMemberships: (rows) =>
     set((state) => {
@@ -104,6 +142,46 @@ export const useOrbitNavStore = create<OrbitNavState>((set, get) => ({
         activeChannelId: nextActiveChannelId,
       };
     }),
+  setDmConversations: (rows) =>
+    set((state) => {
+      const sortedRows = [...rows].sort((a, b) => {
+        const aDate = a.lastMessage?.created_at ?? a.thread.updated_at;
+        const bDate = b.lastMessage?.created_at ?? b.thread.updated_at;
+        return bDate.localeCompare(aDate);
+      });
+
+      const nextActiveDmThreadId =
+        state.activeDmThreadId &&
+        sortedRows.some((row) => row.thread.id === state.activeDmThreadId)
+          ? state.activeDmThreadId
+          : state.activeView === "DM_THREAD"
+            ? sortedRows[0]?.thread.id ?? null
+            : state.activeDmThreadId;
+
+      return {
+        dmConversations: sortedRows,
+        activeDmThreadId: nextActiveDmThreadId,
+      };
+    }),
+  upsertDmConversation: (row) =>
+    set((state) => {
+      const nextRows = [
+        ...state.dmConversations.filter(
+          (current) => current.thread.id !== row.thread.id,
+        ),
+        row,
+      ].sort((a, b) => {
+        const aDate = a.lastMessage?.created_at ?? a.thread.updated_at;
+        const bDate = b.lastMessage?.created_at ?? b.thread.updated_at;
+        return bDate.localeCompare(aDate);
+      });
+
+      return {
+        dmConversations: nextRows,
+      };
+    }),
+  setRelationships: (rows) => set({ relationships: rows }),
+  setOnlineProfileIds: (ids) => set({ onlineProfileIds: ids }),
   upsertServer: (server, member) =>
     set((state) => {
       const nextServers = [
@@ -133,16 +211,16 @@ export const useOrbitNavStore = create<OrbitNavState>((set, get) => ({
         },
       };
     }),
-  setMessages: (channelId, messages) =>
+  setMessages: (conversationKey, messages) =>
     set((state) => ({
       messageCache: {
         ...state.messageCache,
-        [channelId]: sortByCreatedAt(messages),
+        [conversationKey]: sortByCreatedAt(messages),
       },
     })),
-  upsertMessage: (channelId, message) =>
+  upsertMessage: (conversationKey, message) =>
     set((state) => {
-      const current = state.messageCache[channelId] ?? [];
+      const current = state.messageCache[conversationKey] ?? [];
       const nextMessages = sortByCreatedAt(
         [...current.filter((item) => item.id !== message.id), message],
       );
@@ -150,13 +228,13 @@ export const useOrbitNavStore = create<OrbitNavState>((set, get) => ({
       return {
         messageCache: {
           ...state.messageCache,
-          [channelId]: nextMessages,
+          [conversationKey]: nextMessages,
         },
       };
     }),
-  replaceMessage: (channelId, tempId, message) =>
+  replaceMessage: (conversationKey, tempId, message) =>
     set((state) => {
-      const current = state.messageCache[channelId] ?? [];
+      const current = state.messageCache[conversationKey] ?? [];
       const nextMessages = sortByCreatedAt(
         [
           ...current.filter(
@@ -169,26 +247,58 @@ export const useOrbitNavStore = create<OrbitNavState>((set, get) => ({
       return {
         messageCache: {
           ...state.messageCache,
-          [channelId]: nextMessages,
+          [conversationKey]: nextMessages,
         },
       };
     }),
-  removeMessage: (channelId, messageId) =>
+  removeMessage: (conversationKey, messageId) =>
     set((state) => {
-      const current = state.messageCache[channelId] ?? [];
+      const current = state.messageCache[conversationKey] ?? [];
       return {
         messageCache: {
           ...state.messageCache,
-          [channelId]: current.filter((item) => item.id !== messageId),
+          [conversationKey]: current.filter((item) => item.id !== messageId),
         },
       };
     }),
   setCollapsed: (collapsed) => set({ collapsed }),
   toggleCollapsed: () => set((state) => ({ collapsed: !state.collapsed })),
+  setPrivacyMode: (value) => set({ privacyMode: value }),
+  togglePrivacyMode: () =>
+    set((state) => ({ privacyMode: !state.privacyMode })),
+  setMobilePanelOpen: (panel, open) =>
+    set((state) => ({
+      mobilePanels: {
+        ...state.mobilePanels,
+        [panel]: open,
+      },
+    })),
+  setActiveHome: () =>
+    set({
+      activeView: "DM_HOME",
+      activeServerId: null,
+      activeChannelId: null,
+      activeDmThreadId: null,
+    }),
+  setActiveFriends: () =>
+    set({
+      activeView: "FRIENDS",
+      activeServerId: null,
+      activeChannelId: null,
+      activeDmThreadId: null,
+    }),
+  setActiveDmThread: (threadId) =>
+    set({
+      activeView: threadId ? "DM_THREAD" : "DM_HOME",
+      activeDmThreadId: threadId,
+      activeServerId: null,
+      activeChannelId: null,
+    }),
   setActiveServer: (serverId) =>
     set((state) => {
       if (!serverId) {
         return {
+          activeView: "DM_HOME",
           activeServerId: null,
           activeChannelId: null,
         };
@@ -201,13 +311,55 @@ export const useOrbitNavStore = create<OrbitNavState>((set, get) => ({
 
       const channels = state.channelsByServer[serverId] ?? [];
       return {
+        activeView: "SERVER",
         activeServerId: serverId,
         activeChannelId: channels[0]?.id ?? null,
+        activeDmThreadId: null,
       };
     }),
-  setActiveChannel: (channelId) => set({ activeChannelId: channelId }),
+  setActiveChannel: (channelId) =>
+    set({
+      activeView: "SERVER",
+      activeChannelId: channelId,
+      activeDmThreadId: null,
+    }),
   getSummary: () => {
-    const { servers, channelsByServer, activeServerId, activeChannelId } = get();
+    const {
+      activeView,
+      dmConversations,
+      servers,
+      channelsByServer,
+      activeServerId,
+      activeChannelId,
+      activeDmThreadId,
+    } = get();
+    if (activeView === "FRIENDS") {
+      return {
+        activeServerName: "Home",
+        activeChannelName: "Friends",
+      };
+    }
+
+    if (activeView === "DM_HOME") {
+      return {
+        activeServerName: "Home",
+        activeChannelName: "Direct Messages",
+      };
+    }
+
+    if (activeView === "DM_THREAD") {
+      const activeThread = dmConversations.find(
+        (thread) => thread.thread.id === activeDmThreadId,
+      );
+      return {
+        activeServerName: "Direct Message",
+        activeChannelName:
+          activeThread?.otherProfile.full_name ??
+          activeThread?.otherProfile.username ??
+          "Conversation",
+      };
+    }
+
     const activeServer = servers.find((server) => server.id === activeServerId);
     const activeChannels = activeServerId
       ? channelsByServer[activeServerId] ?? []

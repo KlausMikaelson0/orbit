@@ -5,18 +5,24 @@ import { FileText, Loader2, Paperclip, SendHorizontal, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { isImageAttachment, isPdfAttachment } from "@/lib/utils";
+import { getConversationKey, isImageAttachment, isPdfAttachment } from "@/lib/utils";
 import { getOrbitSupabaseClient } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type { OrbitMember, OrbitMessageView, OrbitProfile } from "@/src/types/orbit";
 
 interface ChatInputProps {
-  channelId: string | null;
+  mode: "channel" | "dm";
+  conversationId: string | null;
   member: OrbitMember | null;
   profile: OrbitProfile | null;
 }
 
-export function ChatInput({ channelId, member, profile }: ChatInputProps) {
+export function ChatInput({
+  mode,
+  conversationId,
+  member,
+  profile,
+}: ChatInputProps) {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
   const upsertMessage = useOrbitNavStore((state) => state.upsertMessage);
   const replaceMessage = useOrbitNavStore((state) => state.replaceMessage);
@@ -28,6 +34,8 @@ export function ChatInput({ channelId, member, profile }: ChatInputProps) {
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const conversationKey = getConversationKey(mode, conversationId);
 
   useEffect(() => {
     if (!attachment) {
@@ -49,14 +57,14 @@ export function ChatInput({ channelId, member, profile }: ChatInputProps) {
   }, [attachment]);
 
   async function uploadAttachment(file: File) {
-    if (!channelId || !member) {
-      throw new Error("Missing channel or membership context.");
+    if (!conversationId || !profile) {
+      throw new Error("Missing conversation context.");
     }
 
     const extension = file.name.split(".").pop() ?? "file";
     const baseName = file.name.replace(/\.[^/.]+$/, "");
     const cleanBaseName = baseName.replace(/[^\w.-]/g, "_").slice(0, 40);
-    const path = `${channelId}/${member.profile_id}/${Date.now()}-${cleanBaseName}.${extension}`;
+    const path = `${mode}/${conversationId}/${profile.id}/${Date.now()}-${cleanBaseName}.${extension}`;
 
     const { error: uploadError } = await supabase.storage
       .from("message-attachments")
@@ -69,16 +77,17 @@ export function ChatInput({ channelId, member, profile }: ChatInputProps) {
       throw uploadError;
     }
 
-    const { data } = supabase.storage
-      .from("message-attachments")
-      .getPublicUrl(path);
-
+    const { data } = supabase.storage.from("message-attachments").getPublicUrl(path);
     return data.publicUrl;
   }
 
   async function submitMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!channelId || !member) {
+    if (!conversationId || !profile || !conversationKey) {
+      return;
+    }
+
+    if (mode === "channel" && !member) {
       return;
     }
 
@@ -101,11 +110,12 @@ export function ChatInput({ channelId, member, profile }: ChatInputProps) {
       id: tempId,
       content: trimmed || null,
       file_url: currentAttachment
-        ? attachmentPreview ??
-          `pending://${encodeURIComponent(currentAttachment.name)}`
+        ? attachmentPreview ?? `pending://${encodeURIComponent(currentAttachment.name)}`
         : null,
-      member_id: member.id,
-      channel_id: channelId,
+      member_id: mode === "channel" ? member?.id ?? null : null,
+      channel_id: mode === "channel" ? conversationId : null,
+      profile_id: mode === "dm" ? profile.id : null,
+      thread_id: mode === "dm" ? conversationId : null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       optimistic: true,
@@ -116,12 +126,11 @@ export function ChatInput({ channelId, member, profile }: ChatInputProps) {
           }
         : null,
       author: {
-        member,
+        member: mode === "channel" ? member : null,
         profile,
       },
     };
-
-    upsertMessage(channelId, optimisticMessage);
+    upsertMessage(conversationKey, optimisticMessage);
 
     let fileUrl: string | null = null;
     try {
@@ -129,7 +138,7 @@ export function ChatInput({ channelId, member, profile }: ChatInputProps) {
         fileUrl = await uploadAttachment(currentAttachment);
       }
     } catch (uploadError) {
-      removeMessage(channelId, tempId);
+      removeMessage(conversationKey, tempId);
       setError(
         uploadError instanceof Error
           ? uploadError.message
@@ -139,42 +148,77 @@ export function ChatInput({ channelId, member, profile }: ChatInputProps) {
       return;
     }
 
-    const { data, error: insertError } = await supabase
-      .from("messages")
-      .insert({
-        content: trimmed || null,
-        file_url: fileUrl,
-        member_id: member.id,
-        channel_id: channelId,
-      })
-      .select("*")
-      .single();
+    let insertError: string | null = null;
+    let insertedRow: Record<string, unknown> | null = null;
 
-    if (insertError || !data) {
-      removeMessage(channelId, tempId);
-      setError(insertError?.message ?? "Unable to send message.");
+    if (mode === "channel") {
+      const { data, error } = await supabase
+        .from("messages")
+        .insert({
+          content: trimmed || null,
+          file_url: fileUrl,
+          member_id: member?.id ?? null,
+          channel_id: conversationId,
+        })
+        .select("*")
+        .single();
+      insertError = error?.message ?? null;
+      insertedRow = (data as Record<string, unknown> | null) ?? null;
+    } else {
+      const { data, error } = await supabase
+        .from("dm_messages")
+        .insert({
+          content: trimmed || null,
+          file_url: fileUrl,
+          profile_id: profile.id,
+          thread_id: conversationId,
+        })
+        .select("*")
+        .single();
+      insertError = error?.message ?? null;
+      insertedRow = (data as Record<string, unknown> | null) ?? null;
+    }
+
+    if (insertError || !insertedRow) {
+      removeMessage(conversationKey, tempId);
+      setError(insertError ?? "Unable to send message.");
       setSending(false);
       return;
     }
 
     const committedMessage: OrbitMessageView = {
-      ...data,
+      id: String(insertedRow.id),
+      content: (insertedRow.content as string | null) ?? null,
+      file_url: (insertedRow.file_url as string | null) ?? null,
+      member_id:
+        mode === "channel" ? ((insertedRow.member_id as string | null) ?? null) : null,
+      channel_id:
+        mode === "channel" ? ((insertedRow.channel_id as string | null) ?? null) : null,
+      profile_id:
+        mode === "dm" ? ((insertedRow.profile_id as string | null) ?? profile.id) : null,
+      thread_id:
+        mode === "dm" ? ((insertedRow.thread_id as string | null) ?? conversationId) : null,
+      created_at: String(insertedRow.created_at),
+      updated_at: String(insertedRow.updated_at),
       optimistic: false,
-      author: {
-        member,
-        profile,
-      },
       attachment: currentAttachment
         ? {
             name: currentAttachment.name,
             mimeType: currentAttachment.type || "application/octet-stream",
           }
         : null,
+      author: {
+        member: mode === "channel" ? member : null,
+        profile,
+      },
     };
 
-    replaceMessage(channelId, tempId, committedMessage);
+    replaceMessage(conversationKey, tempId, committedMessage);
     setSending(false);
   }
+
+  const isDisabled =
+    !conversationId || !profile || (mode === "channel" && !member) || sending;
 
   return (
     <form className="mt-3" onSubmit={submitMessage}>
@@ -224,7 +268,7 @@ export function ChatInput({ channelId, member, profile }: ChatInputProps) {
         />
         <Button
           className="h-11 w-11 rounded-xl"
-          disabled={!channelId || !member || sending}
+          disabled={isDisabled}
           onClick={() => attachmentInputRef.current?.click()}
           size="icon"
           type="button"
@@ -235,21 +279,19 @@ export function ChatInput({ channelId, member, profile }: ChatInputProps) {
 
         <Input
           className="h-11 rounded-xl border-white/15 bg-black/35"
-          disabled={!channelId || !member || sending}
+          disabled={isDisabled}
           onChange={(event) => setContent(event.target.value)}
           placeholder={
-            channelId
-              ? "Transmit a message to this channel..."
-              : "Select a channel to begin"
+            conversationId
+              ? "Transmit a message..."
+              : "Select a channel or DM to begin"
           }
           value={content}
         />
 
         <Button
           className="h-11 w-11 rounded-xl"
-          disabled={
-            !channelId || !member || (!content.trim() && !attachment) || sending
-          }
+          disabled={isDisabled || (!content.trim() && !attachment)}
           size="icon"
           type="submit"
         >

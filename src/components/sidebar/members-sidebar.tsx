@@ -20,6 +20,7 @@ import type { MemberRole, OrbitMemberWithProfile } from "@/src/types/orbit";
 
 interface MembersSidebarProps {
   user: User | null;
+  mobile?: boolean;
 }
 
 const roleColor: Record<MemberRole, string> = {
@@ -34,7 +35,7 @@ function roleLabel(role: MemberRole) {
   return "Guest";
 }
 
-export function MembersSidebar({ user }: MembersSidebarProps) {
+export function MembersSidebar({ user, mobile = false }: MembersSidebarProps) {
   const [actionError, setActionError] = useState<string | null>(null);
   const activeServerId = useOrbitNavStore((state) => state.activeServerId);
   const { members, loading, isAdmin, kickMember, banMember } = useOrbitMembers(
@@ -68,7 +69,11 @@ export function MembersSidebar({ user }: MembersSidebarProps) {
   }
 
   return (
-    <aside className="glass-panel hidden h-full w-[320px] shrink-0 rounded-[1.75rem] border border-white/10 p-3 xl:block">
+    <aside
+      className={`glass-panel h-full shrink-0 rounded-[1.75rem] border border-white/10 p-3 ${
+        mobile ? "w-full" : "hidden w-[320px] xl:block"
+      }`}
+    >
       <div className="mb-3 rounded-2xl border border-violet-400/30 bg-violet-500/10 p-3">
         <p className="text-xs uppercase tracking-[0.14em] text-violet-200">Members</p>
         <div className="mt-1 flex items-center gap-2 text-violet-100">

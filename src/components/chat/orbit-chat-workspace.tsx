@@ -7,26 +7,45 @@ import { Button } from "@/components/ui/button";
 import { ChatInput } from "@/src/components/chat/chat-input";
 import { ChatMessages } from "@/src/components/chat/chat-messages";
 import { LivekitChannelRoom } from "@/src/components/live/livekit-channel-room";
+import { useOrbitSocialContext } from "@/src/context/orbit-social-context";
 import { mockChannelSummary } from "@/src/lib/mock-ai-summary";
+import { DmHomeView } from "@/src/components/social/dm-home-view";
+import { FriendsView } from "@/src/components/social/friends-view";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 
 export function OrbitChatWorkspace() {
   const {
+    sendFriendRequest,
+    acceptFriendRequest,
+    declineFriendRequest,
+    openOrCreateDmWithProfile,
+  } = useOrbitSocialContext();
+  const {
+    activeView,
     servers,
     profile,
     activeServerId,
     activeChannelId,
+    activeDmThreadId,
     channelsByServer,
+    dmConversations,
     membershipsByServer,
     messageCache,
+    privacyMode,
+    setActiveFriends,
   } = useOrbitNavStore((state) => ({
+    activeView: state.activeView,
     servers: state.servers,
     profile: state.profile,
     activeServerId: state.activeServerId,
     activeChannelId: state.activeChannelId,
+    activeDmThreadId: state.activeDmThreadId,
     channelsByServer: state.channelsByServer,
+    dmConversations: state.dmConversations,
     membershipsByServer: state.membershipsByServer,
     messageCache: state.messageCache,
+    privacyMode: state.privacyMode,
+    setActiveFriends: state.setActiveFriends,
   }));
   const [summarizing, setSummarizing] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
@@ -39,18 +58,29 @@ export function OrbitChatWorkspace() {
   const currentMember = activeServerId
     ? membershipsByServer[activeServerId] ?? null
     : null;
+  const activeDmConversation = dmConversations.find(
+    (conversation) => conversation.thread.id === activeDmThreadId,
+  );
   const recentMessages = useMemo(
-    () => (activeChannelId ? messageCache[activeChannelId] ?? [] : []),
-    [activeChannelId, messageCache],
+    () => {
+      if (activeView === "DM_THREAD" && activeDmThreadId) {
+        return messageCache[`dm:${activeDmThreadId}`] ?? [];
+      }
+      if (activeView === "SERVER" && activeChannelId) {
+        return messageCache[`channel:${activeChannelId}`] ?? [];
+      }
+      return [];
+    },
+    [activeChannelId, activeDmThreadId, activeView, messageCache],
   );
 
   useEffect(() => {
     setSummary(null);
     setSummaryError(null);
-  }, [activeChannelId]);
+  }, [activeChannelId, activeDmThreadId]);
 
   async function summarizeChannel() {
-    if (!activeChannelId) {
+    if (!recentMessages.length) {
       return;
     }
 
@@ -71,18 +101,38 @@ export function OrbitChatWorkspace() {
       <div className="mb-3 flex items-center justify-between rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
         <div className="min-w-0">
           <p className="truncate text-xs uppercase tracking-[0.16em] text-zinc-400">
-            {activeServer?.name ?? "Unified Space"}
+            {activeView === "DM_THREAD"
+              ? "Direct Message"
+              : activeView === "DM_HOME"
+                ? "Home"
+                : activeView === "FRIENDS"
+                  ? "Friends"
+                  : activeServer?.name ?? "Unified Space"}
           </p>
           <p className="truncate text-sm font-semibold text-violet-100">
-            {activeChannel ? `#${activeChannel.name}` : "No active channel"}
+            {activeView === "DM_THREAD"
+              ? activeDmConversation?.otherProfile.full_name ??
+                activeDmConversation?.otherProfile.username ??
+                "Conversation"
+              : activeView === "DM_HOME"
+                ? "Direct Messages"
+                : activeView === "FRIENDS"
+                  ? "Relationship Hub"
+                  : activeChannel
+                    ? `#${activeChannel.name}`
+                    : "No active channel"}
           </p>
         </div>
         <div className="rounded-full border border-violet-400/30 bg-violet-500/10 px-3 py-1 text-[11px] text-violet-200">
-          {activeChannel?.type ?? "TEXT"}
+          {activeView === "SERVER"
+            ? activeChannel?.type ?? "TEXT"
+            : activeView === "DM_THREAD"
+              ? "DM"
+              : "SOCIAL"}
         </div>
       </div>
 
-      {activeChannel ? (
+      {activeView === "SERVER" || activeView === "DM_THREAD" ? (
         <div className="mb-3 flex items-center justify-between rounded-2xl border border-white/10 bg-black/25 px-3 py-2">
           <div className="flex items-center gap-2 text-sm text-zinc-300">
             <BrainCircuit className="h-4 w-4 text-violet-300" />
@@ -113,7 +163,33 @@ export function OrbitChatWorkspace() {
         </p>
       ) : null}
 
-      {!activeServer ? (
+      {activeView === "FRIENDS" ? (
+        <FriendsView
+          acceptFriendRequest={acceptFriendRequest}
+          declineFriendRequest={declineFriendRequest}
+          openOrCreateDmWithProfile={openOrCreateDmWithProfile}
+          sendFriendRequest={sendFriendRequest}
+        />
+      ) : activeView === "DM_HOME" ? (
+        <DmHomeView onOpenFriends={setActiveFriends} />
+      ) : activeView === "DM_THREAD" ? (
+        <>
+          <div className={`min-h-0 flex-1 ${privacyMode ? "privacy-shield" : ""}`}>
+            <div className="privacy-content h-full">
+              <ChatMessages
+                conversationId={activeDmConversation?.thread.id ?? null}
+                mode="dm"
+              />
+            </div>
+          </div>
+          <ChatInput
+            conversationId={activeDmConversation?.thread.id ?? null}
+            member={null}
+            mode="dm"
+            profile={profile}
+          />
+        </>
+      ) : !activeServer ? (
         <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/20 text-zinc-400">
           <div className="text-center">
             <RadioTower className="mx-auto mb-2 h-6 w-6 text-violet-300" />
@@ -141,12 +217,18 @@ export function OrbitChatWorkspace() {
         </div>
       ) : (
         <>
-          <div className="min-h-0 flex-1">
-            <ChatMessages channelId={activeChannel.id} />
+          <div className={`min-h-0 flex-1 ${privacyMode ? "privacy-shield" : ""}`}>
+            <div className="privacy-content h-full">
+              <ChatMessages
+                conversationId={activeChannel.id}
+                mode="channel"
+              />
+            </div>
           </div>
           <ChatInput
-            channelId={activeChannel.id}
+            conversationId={activeChannel.id}
             member={currentMember}
+            mode="channel"
             profile={profile}
           />
         </>

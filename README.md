@@ -4,6 +4,7 @@ Orbit is now running on a multi-phase foundation:
 - Phase 1: Cosmic UI + Auth + Dashboard shell
 - Phase 2: Supabase schema, realtime text chat, invite-based server/channel system
 - Phase 3: media uploads, LiveKit voice/video channels, member moderation, AI summary UI
+- Phase 4: social core (DMs, friends, command palette, notifications, privacy mode)
 
 ## Stack
 
@@ -26,6 +27,12 @@ Additional Phase 3 packages:
 npm install @livekit/components-react livekit-client livekit-server-sdk @radix-ui/react-dropdown-menu
 ```
 
+Additional Phase 4 package:
+
+```bash
+npm install cmdk
+```
+
 ## Core structure
 
 ```
@@ -38,7 +45,10 @@ src/
     sidebar/
     live/
     modals/
+    social/
+    search/
   hooks/
+  context/
   stores/
   types/
   lib/
@@ -56,6 +66,12 @@ src/
   - Admin kick/ban context actions
   - Summarize Channel (mock AI summary)
   - Message attachment uploads (images + PDFs)
+  - Direct messages (Home view)
+  - Friends system (All/Pending/Add Friend)
+  - Orbit Spotlight search (Ctrl/Cmd + K)
+  - Browser notifications + Orbit ping sound
+  - Privacy mode (blur chat until hover)
+  - Mobile side panels (hamburger/menu-driven)
 
 ## Supabase setup
 
@@ -85,11 +101,13 @@ supabase/migrations/
 Required:
 - `20260219_orbit_phase2.sql`
 - `20260219_orbit_phase3_media_voice.sql`
+- `20260219_orbit_phase4_social.sql`
 
 These create:
 - core tables (`profiles`, `servers`, `channels`, `members`, `messages`)
 - moderation table (`server_bans`)
 - storage bucket `message-attachments`
+- social tables (`relationships`, `dm_threads`, `dm_participants`, `dm_messages`)
 - realtime publication + RLS policies
 
 ## LiveKit setup

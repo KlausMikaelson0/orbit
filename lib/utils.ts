@@ -35,3 +35,13 @@ export function generateInviteCode() {
 export function buildLivekitRoomName(serverId: string, channelId: string) {
   return `orbit-server-${serverId}-channel-${channelId}`;
 }
+
+export function getConversationKey(
+  kind: "channel" | "dm",
+  id: string | null | undefined,
+) {
+  if (!id) {
+    return null;
+  }
+  return `${kind}:${id}`;
+}

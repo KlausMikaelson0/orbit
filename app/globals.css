@@ -75,3 +75,18 @@ body {
     linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
   background-size: 52px 52px;
 }
+
+.privacy-shield .privacy-content {
+  filter: blur(8px);
+  transition: filter 160ms ease;
+}
+
+.privacy-shield:hover .privacy-content {
+  filter: blur(0);
+}
+
+@media (hover: none) {
+  .privacy-shield .privacy-content {
+    filter: none;
+  }
+}

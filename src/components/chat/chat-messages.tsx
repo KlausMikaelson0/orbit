@@ -5,28 +5,39 @@ import { FileText, Loader2, Orbit } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { formatTime, isImageAttachment, isPdfAttachment } from "@/lib/utils";
+import { formatTime, getConversationKey, isImageAttachment, isPdfAttachment } from "@/lib/utils";
+import {
+  notifyOrbitMessage,
+  playOrbitPingSound,
+} from "@/src/lib/orbit-notifications";
 import { getOrbitSupabaseClient } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type { OrbitMessage, OrbitMessageView } from "@/src/types/orbit";
 
 interface ChatMessagesProps {
-  channelId: string | null;
+  mode: "channel" | "dm";
+  conversationId: string | null;
 }
 
-export function ChatMessages({ channelId }: ChatMessagesProps) {
+export function ChatMessages({ mode, conversationId }: ChatMessagesProps) {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  const messages = useOrbitNavStore(
-    (state) => (channelId ? state.messageCache[channelId] ?? [] : []),
-  );
-  const setMessages = useOrbitNavStore((state) => state.setMessages);
-  const upsertMessage = useOrbitNavStore((state) => state.upsertMessage);
-  const removeMessage = useOrbitNavStore((state) => state.removeMessage);
+  const { ownProfileId, messages, setMessages, removeMessage } =
+    useOrbitNavStore((state) => {
+      const conversationKey = getConversationKey(mode, conversationId);
+      return {
+        ownProfileId: state.profile?.id ?? null,
+        messages: conversationKey ? state.messageCache[conversationKey] ?? [] : [],
+        setMessages: state.setMessages,
+        removeMessage: state.removeMessage,
+      };
+    });
 
-  const hydrateRows = useCallback((rows: unknown[]) => {
+  const conversationKey = getConversationKey(mode, conversationId);
+
+  const hydrateChannelRows = useCallback((rows: unknown[]) => {
     return rows.map((row) => {
       const source = row as {
         id: string;
@@ -46,6 +57,7 @@ export function ChatMessages({ channelId }: ChatMessagesProps) {
           profile?: {
             id: string;
             username: string | null;
+            tag: string | null;
             full_name: string | null;
             avatar_url: string | null;
             created_at: string;
@@ -60,6 +72,8 @@ export function ChatMessages({ channelId }: ChatMessagesProps) {
         file_url: source.file_url,
         member_id: source.member_id,
         channel_id: source.channel_id,
+        profile_id: source.member?.profile_id ?? null,
+        thread_id: null,
         created_at: source.created_at,
         updated_at: source.updated_at,
         author: {
@@ -70,77 +84,195 @@ export function ChatMessages({ channelId }: ChatMessagesProps) {
     });
   }, []);
 
+  const hydrateDmRows = useCallback((rows: unknown[]) => {
+    return rows.map((row) => {
+      const source = row as {
+        id: string;
+        content: string | null;
+        file_url: string | null;
+        profile_id: string;
+        thread_id: string;
+        created_at: string;
+        updated_at: string;
+        profile?: {
+          id: string;
+          username: string | null;
+          tag: string | null;
+          full_name: string | null;
+          avatar_url: string | null;
+          created_at: string;
+          updated_at: string;
+        } | null;
+      };
+
+      return {
+        id: source.id,
+        content: source.content,
+        file_url: source.file_url,
+        member_id: null,
+        channel_id: null,
+        profile_id: source.profile_id,
+        thread_id: source.thread_id,
+        created_at: source.created_at,
+        updated_at: source.updated_at,
+        author: {
+          member: null,
+          profile: source.profile ?? null,
+        },
+      } satisfies OrbitMessageView;
+    });
+  }, []);
+
   const fetchMessages = useCallback(async () => {
-    if (!channelId) {
+    if (!conversationId || !conversationKey) {
       return;
     }
 
     setLoading(true);
-    const { data } = await supabase
-      .from("messages")
-      .select(
-        "id, content, file_url, member_id, channel_id, created_at, updated_at, member:members(id, role, profile_id, server_id, created_at, updated_at, profile:profiles(id, username, full_name, avatar_url, created_at, updated_at))",
-      )
-      .eq("channel_id", channelId)
-      .order("created_at", { ascending: true })
-      .limit(300);
 
-    setMessages(channelId, hydrateRows(data ?? []));
-    setLoading(false);
-  }, [channelId, hydrateRows, setMessages, supabase]);
-
-  const hydrateSingleMessage = useCallback(
-    async (row: OrbitMessage) => {
+    if (mode === "channel") {
       const { data } = await supabase
         .from("messages")
         .select(
-          "id, content, file_url, member_id, channel_id, created_at, updated_at, member:members(id, role, profile_id, server_id, created_at, updated_at, profile:profiles(id, username, full_name, avatar_url, created_at, updated_at))",
+          "id, content, file_url, member_id, channel_id, created_at, updated_at, member:members(id, role, profile_id, server_id, created_at, updated_at, profile:profiles(id, username, tag, full_name, avatar_url, created_at, updated_at))",
         )
-        .eq("id", row.id)
-        .maybeSingle();
+        .eq("channel_id", conversationId)
+        .order("created_at", { ascending: true })
+        .limit(300);
 
-      if (!data) {
-        return {
-          ...row,
-          author: {
-            member: null,
-            profile: null,
-          },
-        } satisfies OrbitMessageView;
+      setMessages(conversationKey, hydrateChannelRows(data ?? []));
+    } else {
+      const { data } = await supabase
+        .from("dm_messages")
+        .select(
+          "id, content, file_url, profile_id, thread_id, created_at, updated_at, profile:profiles(id, username, tag, full_name, avatar_url, created_at, updated_at)",
+        )
+        .eq("thread_id", conversationId)
+        .order("created_at", { ascending: true })
+        .limit(300);
+
+      setMessages(conversationKey, hydrateDmRows(data ?? []));
+    }
+
+    setLoading(false);
+  }, [
+    conversationId,
+    conversationKey,
+    hydrateChannelRows,
+    hydrateDmRows,
+    mode,
+    setMessages,
+    supabase,
+  ]);
+
+  const notifyIfIncoming = useCallback(
+    async (message: OrbitMessageView) => {
+      if (!ownProfileId) {
+        return;
       }
 
-      return hydrateRows([data])[0];
+      if (mode === "dm") {
+        return;
+      }
+
+      const authorId = message.profile_id ?? message.author.profile?.id ?? null;
+      if (!authorId || authorId === ownProfileId) {
+        return;
+      }
+
+      playOrbitPingSound();
+      const title = "New channel message";
+      const body = message.content ?? "Sent an attachment";
+      if (document.hidden) {
+        await notifyOrbitMessage(title, body);
+      }
     },
-    [hydrateRows, supabase],
+    [mode, ownProfileId],
   );
 
   useEffect(() => {
-    if (!channelId) {
+    if (!conversationId) {
       return;
     }
 
     void fetchMessages();
-  }, [channelId, fetchMessages]);
+  }, [conversationId, fetchMessages]);
 
   useEffect(() => {
-    if (!channelId) {
+    if (!conversationId || !conversationKey) {
       return;
     }
 
-    const realtimeChannel = supabase
-      .channel(`orbit-messages-${channelId}`)
+    if (mode === "channel") {
+      const realtimeChannel = supabase
+        .channel(`orbit-messages-${conversationId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
+            filter: `channel_id=eq.${conversationId}`,
+          },
+          () => {
+            void (async () => {
+              await fetchMessages();
+              const latest =
+                useOrbitNavStore.getState().messageCache[conversationKey]?.slice(-1)[0] ?? null;
+              if (latest) {
+                await notifyIfIncoming(latest);
+              }
+            })();
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "messages",
+            filter: `channel_id=eq.${conversationId}`,
+          },
+          () => void fetchMessages(),
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "DELETE",
+            schema: "public",
+            table: "messages",
+            filter: `channel_id=eq.${conversationId}`,
+          },
+          (payload) => {
+            const row = payload.old as OrbitMessage;
+            removeMessage(conversationKey, row.id);
+          },
+        )
+        .subscribe();
+
+      return () => {
+        void supabase.removeChannel(realtimeChannel);
+      };
+    }
+
+    const realtimeDm = supabase
+      .channel(`orbit-dm-${conversationId}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
-          table: "messages",
-          filter: `channel_id=eq.${channelId}`,
+          table: "dm_messages",
+          filter: `thread_id=eq.${conversationId}`,
         },
-        (payload) => {
+        () => {
           void (async () => {
-            const hydrated = await hydrateSingleMessage(payload.new as OrbitMessage);
-            upsertMessage(channelId, hydrated);
+            await fetchMessages();
+            const latest =
+              useOrbitNavStore.getState().messageCache[conversationKey]?.slice(-1)[0] ?? null;
+            if (latest) {
+              await notifyIfIncoming(latest);
+            }
           })();
         },
       )
@@ -149,34 +281,39 @@ export function ChatMessages({ channelId }: ChatMessagesProps) {
         {
           event: "UPDATE",
           schema: "public",
-          table: "messages",
-          filter: `channel_id=eq.${channelId}`,
+          table: "dm_messages",
+          filter: `thread_id=eq.${conversationId}`,
         },
-        (payload) => {
-          void (async () => {
-            const hydrated = await hydrateSingleMessage(payload.new as OrbitMessage);
-            upsertMessage(channelId, hydrated);
-          })();
-        },
+        () => void fetchMessages(),
       )
       .on(
         "postgres_changes",
         {
           event: "DELETE",
           schema: "public",
-          table: "messages",
-          filter: `channel_id=eq.${channelId}`,
+          table: "dm_messages",
+          filter: `thread_id=eq.${conversationId}`,
         },
         (payload) => {
-          removeMessage(channelId, (payload.old as OrbitMessage).id);
+          const row = payload.old as OrbitMessage;
+          removeMessage(conversationKey, row.id);
         },
       )
       .subscribe();
 
     return () => {
-      void supabase.removeChannel(realtimeChannel);
+      void supabase.removeChannel(realtimeDm);
     };
-  }, [channelId, hydrateSingleMessage, removeMessage, supabase, upsertMessage]);
+  }, [
+    conversationId,
+    conversationKey,
+    fetchMessages,
+    mode,
+    notifyIfIncoming,
+    removeMessage,
+    setMessages,
+    supabase,
+  ]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
@@ -185,10 +322,10 @@ export function ChatMessages({ channelId }: ChatMessagesProps) {
     });
   }, [messages.length]);
 
-  if (!channelId) {
+  if (!conversationId) {
     return (
       <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/20 p-4">
-        <p className="text-sm text-zinc-400">Select a channel to start messaging.</p>
+        <p className="text-sm text-zinc-400">Select a channel or DM to start messaging.</p>
       </div>
     );
   }

@@ -49,7 +49,7 @@ export function useOrbitMembers(user: User | null, serverId: string | null) {
     const { data } = await supabase
       .from("members")
       .select(
-        "id, role, profile_id, server_id, created_at, updated_at, profile:profiles(id, username, full_name, avatar_url, created_at, updated_at)",
+        "id, role, profile_id, server_id, created_at, updated_at, profile:profiles(id, username, tag, full_name, avatar_url, created_at, updated_at)",
       )
       .eq("server_id", serverId)
       .order("created_at", { ascending: true });
