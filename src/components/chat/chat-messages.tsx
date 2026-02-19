@@ -5,6 +5,7 @@ import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import { FileText, Loader2, Orbit } from "lucide-react";
 import remarkGfm from "remark-gfm";
+import { useShallow } from "zustand/react/shallow";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -27,6 +28,8 @@ interface ChatMessagesProps {
   onOpenThread?: (message: OrbitMessageView) => void;
 }
 
+const EMPTY_MESSAGES: OrbitMessageView[] = [];
+
 export function ChatMessages({
   mode,
   conversationId,
@@ -37,19 +40,19 @@ export function ChatMessages({
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const conversationKey = getConversationKey(mode, conversationId);
 
   const { ownProfileId, messages, setMessages, removeMessage } =
-    useOrbitNavStore((state) => {
-      const conversationKey = getConversationKey(mode, conversationId);
-      return {
+    useOrbitNavStore(
+      useShallow((state) => ({
         ownProfileId: state.profile?.id ?? null,
-        messages: conversationKey ? state.messageCache[conversationKey] ?? [] : [],
+        messages: conversationKey
+          ? state.messageCache[conversationKey] ?? EMPTY_MESSAGES
+          : EMPTY_MESSAGES,
         setMessages: state.setMessages,
         removeMessage: state.removeMessage,
-      };
-    });
-
-  const conversationKey = getConversationKey(mode, conversationId);
+      })),
+    );
 
   const hydrateChannelRows = useCallback((rows: unknown[]) => {
     return rows.map((row) => {

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { BarChart3, BrainCircuit, Hash, RadioTower, Sparkles, X } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 
 import { Button } from "@/components/ui/button";
 import { ServerAnalyticsDashboard } from "@/src/components/analytics/server-analytics-dashboard";
@@ -14,6 +15,7 @@ import { requestOrbitSummary } from "@/src/lib/orbit-bot";
 import { DmHomeView } from "@/src/components/social/dm-home-view";
 import { FriendsView } from "@/src/components/social/friends-view";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
+import type { OrbitMessageView } from "@/src/types/orbit";
 
 const LivekitChannelRoom = dynamic(
   () =>
@@ -22,6 +24,8 @@ const LivekitChannelRoom = dynamic(
     ),
   { ssr: false },
 );
+
+const EMPTY_MESSAGES: OrbitMessageView[] = [];
 
 export function OrbitChatWorkspace() {
   const {
@@ -40,23 +44,23 @@ export function OrbitChatWorkspace() {
     channelsByServer,
     dmConversations,
     membershipsByServer,
-    messageCache,
     privacyMode,
     setActiveFriends,
-  } = useOrbitNavStore((state) => ({
-    activeView: state.activeView,
-    servers: state.servers,
-    profile: state.profile,
-    activeServerId: state.activeServerId,
-    activeChannelId: state.activeChannelId,
-    activeDmThreadId: state.activeDmThreadId,
-    channelsByServer: state.channelsByServer,
-    dmConversations: state.dmConversations,
-    membershipsByServer: state.membershipsByServer,
-    messageCache: state.messageCache,
-    privacyMode: state.privacyMode,
-    setActiveFriends: state.setActiveFriends,
-  }));
+  } = useOrbitNavStore(
+    useShallow((state) => ({
+      activeView: state.activeView,
+      servers: state.servers,
+      profile: state.profile,
+      activeServerId: state.activeServerId,
+      activeChannelId: state.activeChannelId,
+      activeDmThreadId: state.activeDmThreadId,
+      channelsByServer: state.channelsByServer,
+      dmConversations: state.dmConversations,
+      membershipsByServer: state.membershipsByServer,
+      privacyMode: state.privacyMode,
+      setActiveFriends: state.setActiveFriends,
+    })),
+  );
   const [summarizing, setSummarizing] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
@@ -81,17 +85,22 @@ export function OrbitChatWorkspace() {
   );
   const isTextServerChannel =
     activeView === "SERVER" && activeChannel?.type === "TEXT";
-  const recentMessages = useMemo(
+  const activeConversationKey = useMemo(
     () => {
       if (activeView === "DM_THREAD" && activeDmThreadId) {
-        return messageCache[`dm:${activeDmThreadId}`] ?? [];
+        return `dm:${activeDmThreadId}`;
       }
       if (activeView === "SERVER" && activeChannelId) {
-        return messageCache[`channel:${activeChannelId}`] ?? [];
+        return `channel:${activeChannelId}`;
       }
-      return [];
+      return null;
     },
-    [activeChannelId, activeDmThreadId, activeView, messageCache],
+    [activeChannelId, activeDmThreadId, activeView],
+  );
+  const recentMessages = useOrbitNavStore((state) =>
+    activeConversationKey
+      ? state.messageCache[activeConversationKey] ?? EMPTY_MESSAGES
+      : EMPTY_MESSAGES,
   );
   const threadRootMessage = useMemo(
     () => recentMessages.find((message) => message.id === threadRootId) ?? null,

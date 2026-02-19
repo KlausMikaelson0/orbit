@@ -26,6 +26,8 @@ interface ChatInputProps {
   threadParentId?: string | null;
 }
 
+const EMPTY_CACHED_MESSAGES: OrbitMessageView[] = [];
+
 export function ChatInput({
   mode,
   conversationId,
@@ -38,7 +40,9 @@ export function ChatInput({
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
   const conversationKey = getConversationKey(mode, conversationId);
   const cachedMessages = useOrbitNavStore((state) =>
-    conversationKey ? state.messageCache[conversationKey] ?? [] : [],
+    conversationKey
+      ? state.messageCache[conversationKey] ?? EMPTY_CACHED_MESSAGES
+      : EMPTY_CACHED_MESSAGES,
   );
   const upsertMessage = useOrbitNavStore((state) => state.upsertMessage);
   const replaceMessage = useOrbitNavStore((state) => state.replaceMessage);

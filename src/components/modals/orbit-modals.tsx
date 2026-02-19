@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { Loader2 } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -68,12 +69,14 @@ export function OrbitModals({
   } | null>(null);
   const { isElectron, platformLabel } = useOrbitRuntime();
   const { themePreset, customThemeCss, setThemePreset, setCustomThemeCss } =
-    useOrbitNavStore((state) => ({
-      themePreset: state.themePreset,
-      customThemeCss: state.customThemeCss,
-      setThemePreset: state.setThemePreset,
-      setCustomThemeCss: state.setCustomThemeCss,
-    }));
+    useOrbitNavStore(
+      useShallow((state) => ({
+        themePreset: state.themePreset,
+        customThemeCss: state.customThemeCss,
+        setThemePreset: state.setThemePreset,
+        setCustomThemeCss: state.setCustomThemeCss,
+      })),
+    );
 
   const createServerOpen = isOpen && type === "createServer";
   const createChannelOpen = isOpen && type === "createChannel";

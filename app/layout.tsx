@@ -7,11 +7,13 @@ const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
+const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 export const metadata: Metadata = {
   title: "Orbit — The Evolution of Communication",
   description:
     "Orbit is a cosmic-grade collaboration platform with Unified Spaces and AI-ready architecture.",
+  metadataBase: new URL(appUrl),
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,

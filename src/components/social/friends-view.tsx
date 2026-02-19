@@ -1,8 +1,9 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, memo, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { MessageSquare, UserPlus, Users } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -36,11 +37,13 @@ export function FriendsView({
   const [success, setSuccess] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const { relationships, onlineProfileIds, profile } = useOrbitNavStore((state) => ({
-    relationships: state.relationships,
-    onlineProfileIds: state.onlineProfileIds,
-    profile: state.profile,
-  }));
+  const { relationships, onlineProfileIds, profile } = useOrbitNavStore(
+    useShallow((state) => ({
+      relationships: state.relationships,
+      onlineProfileIds: state.onlineProfileIds,
+      profile: state.profile,
+    })),
+  );
 
   const acceptedFriends = useMemo(() => {
     if (!profile) {
@@ -251,7 +254,7 @@ interface FriendListProps {
   busyId?: string | null;
 }
 
-function FriendList({
+const FriendList = memo(function FriendList({
   friends,
   loading = false,
   emptyText,
@@ -338,4 +341,6 @@ function FriendList({
       </div>
     </div>
   );
-}
+});
+
+FriendList.displayName = "FriendList";

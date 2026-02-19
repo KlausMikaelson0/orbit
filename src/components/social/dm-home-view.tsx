@@ -1,6 +1,7 @@
 "use client";
 
 import { MessageCircle } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,11 +15,11 @@ interface DmHomeViewProps {
 export function DmHomeView({ onOpenFriends }: DmHomeViewProps) {
   const { loadingSocial } = useOrbitSocialContext();
   const { dmConversations, onlineProfileIds, setActiveDmThread } = useOrbitNavStore(
-    (state) => ({
+    useShallow((state) => ({
       dmConversations: state.dmConversations,
       onlineProfileIds: state.onlineProfileIds,
       setActiveDmThread: state.setActiveDmThread,
-    }),
+    })),
   );
 
   return (

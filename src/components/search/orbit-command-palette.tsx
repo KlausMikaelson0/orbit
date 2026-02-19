@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Command } from "cmdk";
 import { Hash, Home, Search, UserRound, Users } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type { OrbitProfile } from "@/src/types/orbit";
@@ -30,18 +31,20 @@ export function OrbitCommandPalette({
     setActiveHome,
     setActiveFriends,
     setActiveDmThread,
-  } = useOrbitNavStore((state) => ({
-    servers: state.servers,
-    channelsByServer: state.channelsByServer,
-    relationships: state.relationships,
-    dmConversations: state.dmConversations,
-    profile: state.profile,
-    setActiveServer: state.setActiveServer,
-    setActiveChannel: state.setActiveChannel,
-    setActiveHome: state.setActiveHome,
-    setActiveFriends: state.setActiveFriends,
-    setActiveDmThread: state.setActiveDmThread,
-  }));
+  } = useOrbitNavStore(
+    useShallow((state) => ({
+      servers: state.servers,
+      channelsByServer: state.channelsByServer,
+      relationships: state.relationships,
+      dmConversations: state.dmConversations,
+      profile: state.profile,
+      setActiveServer: state.setActiveServer,
+      setActiveChannel: state.setActiveChannel,
+      setActiveHome: state.setActiveHome,
+      setActiveFriends: state.setActiveFriends,
+      setActiveDmThread: state.setActiveDmThread,
+    })),
+  );
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -67,6 +70,16 @@ export function OrbitCommandPalette({
       )
       .filter((item): item is OrbitProfile => Boolean(item));
   }, [profile, relationships]);
+  const indexedChannels = useMemo(
+    () =>
+      servers.flatMap((server) =>
+        (channelsByServer[server.id] ?? []).map((channel) => ({
+          server,
+          channel,
+        })),
+      ),
+    [channelsByServer, servers],
+  );
 
   return (
     <Command.Dialog
@@ -166,25 +179,23 @@ export function OrbitCommandPalette({
             className="mb-2 rounded-xl border border-white/10 bg-white/[0.02] p-1"
             heading="Channels"
           >
-            {servers.flatMap((server) =>
-              (channelsByServer[server.id] ?? []).map((channel) => (
-                <Command.Item
-                  className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm text-zinc-200 aria-selected:bg-violet-500/20"
-                  key={channel.id}
-                  onSelect={() => {
-                    setActiveServer(server.id);
-                    setActiveChannel(channel.id);
-                    setOpen(false);
-                  }}
-                  value={`channel ${channel.name} ${server.name}`}
-                >
-                  <Hash className="h-4 w-4 text-violet-300" />
-                  <span>
-                    {server.name} / {channel.name}
-                  </span>
-                </Command.Item>
-              )),
-            )}
+            {indexedChannels.map(({ server, channel }) => (
+              <Command.Item
+                className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm text-zinc-200 aria-selected:bg-violet-500/20"
+                key={channel.id}
+                onSelect={() => {
+                  setActiveServer(server.id);
+                  setActiveChannel(channel.id);
+                  setOpen(false);
+                }}
+                value={`channel ${channel.name} ${server.name}`}
+              >
+                <Hash className="h-4 w-4 text-violet-300" />
+                <span>
+                  {server.name} / {channel.name}
+                </span>
+              </Command.Item>
+            ))}
           </Command.Group>
 
           <Command.Group

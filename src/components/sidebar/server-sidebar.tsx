@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Home, Plus, Sparkles, UserPlus } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -28,13 +29,15 @@ export function ServerSidebar({
   onNavigate,
 }: ServerSidebarProps) {
   const { activeView, servers, activeServerId, setActiveServer, setActiveHome } =
-    useOrbitNavStore((state) => ({
-      activeView: state.activeView,
-    servers: state.servers,
-    activeServerId: state.activeServerId,
-    setActiveServer: state.setActiveServer,
-      setActiveHome: state.setActiveHome,
-    }));
+    useOrbitNavStore(
+      useShallow((state) => ({
+        activeView: state.activeView,
+        servers: state.servers,
+        activeServerId: state.activeServerId,
+        setActiveServer: state.setActiveServer,
+        setActiveHome: state.setActiveHome,
+      })),
+    );
   const { onOpen } = useModal();
   const homeActive =
     activeView === "DM_HOME" || activeView === "FRIENDS" || activeView === "DM_THREAD";

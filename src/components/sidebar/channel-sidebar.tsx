@@ -1,6 +1,7 @@
 "use client";
 
 import { FileText, Hash, Mic, Plus, Video } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -39,7 +40,8 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
     setActiveChannel,
     setActiveFriends,
     setActiveDmThread,
-  } = useOrbitNavStore((state) => ({
+  } = useOrbitNavStore(
+    useShallow((state) => ({
       activeView: state.activeView,
       servers: state.servers,
       channelsByServer: state.channelsByServer,
@@ -51,7 +53,8 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
       setActiveChannel: state.setActiveChannel,
       setActiveFriends: state.setActiveFriends,
       setActiveDmThread: state.setActiveDmThread,
-    }));
+    })),
+  );
 
   const activeServer = servers.find((server) => server.id === activeServerId) ?? null;
   const channels = activeServerId ? channelsByServer[activeServerId] ?? [] : [];

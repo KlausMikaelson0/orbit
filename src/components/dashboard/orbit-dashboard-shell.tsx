@@ -19,6 +19,7 @@ import {
   Users,
   UserPlus,
 } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -58,23 +59,83 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
   useOrbitThemeEngine();
   const { canInstall, triggerInstall } = useOrbitInstallPrompt();
   const {
-    navSummary,
-    serverCount,
+    activeView,
+    activeServerId,
+    activeChannelId,
+    activeDmThreadId,
+    servers,
+    channelsByServer,
+    dmConversations,
     mobilePanels,
     setMobilePanelOpen,
     privacyMode,
     togglePrivacyMode,
-  } = useOrbitNavStore((state) => ({
-    navSummary: state.getSummary(),
-    serverCount: state.servers.length,
-    mobilePanels: state.mobilePanels,
-    setMobilePanelOpen: state.setMobilePanelOpen,
-    privacyMode: state.privacyMode,
-    togglePrivacyMode: state.togglePrivacyMode,
-  }));
+  } = useOrbitNavStore(
+    useShallow((state) => ({
+      activeView: state.activeView,
+      activeServerId: state.activeServerId,
+      activeChannelId: state.activeChannelId,
+      activeDmThreadId: state.activeDmThreadId,
+      servers: state.servers,
+      channelsByServer: state.channelsByServer,
+      dmConversations: state.dmConversations,
+      mobilePanels: state.mobilePanels,
+      setMobilePanelOpen: state.setMobilePanelOpen,
+      privacyMode: state.privacyMode,
+      togglePrivacyMode: state.togglePrivacyMode,
+    })),
+  );
   const { loadingServers, createServer, createChannel, joinServerByInvite } =
     useOrbitWorkspace(session?.user ?? null);
   const social = useOrbitSocial(session?.user ?? null);
+  const navSummary = useMemo(() => {
+    if (activeView === "FRIENDS") {
+      return {
+        activeServerName: "Home",
+        activeChannelName: "Friends",
+      };
+    }
+
+    if (activeView === "DM_HOME") {
+      return {
+        activeServerName: "Home",
+        activeChannelName: "Direct Messages",
+      };
+    }
+
+    if (activeView === "DM_THREAD") {
+      const activeThread = dmConversations.find(
+        (thread) => thread.thread.id === activeDmThreadId,
+      );
+      return {
+        activeServerName: "Direct Message",
+        activeChannelName:
+          activeThread?.otherProfile.full_name ??
+          activeThread?.otherProfile.username ??
+          "Conversation",
+      };
+    }
+
+    const activeServer = servers.find((server) => server.id === activeServerId);
+    const activeChannels = activeServerId ? channelsByServer[activeServerId] ?? [] : [];
+    const activeChannel = activeChannels.find(
+      (channel) => channel.id === activeChannelId,
+    );
+
+    return {
+      activeServerName: activeServer?.name ?? "Unified Space",
+      activeChannelName: activeChannel?.name ?? "general",
+    };
+  }, [
+    activeChannelId,
+    activeDmThreadId,
+    activeServerId,
+    activeView,
+    channelsByServer,
+    dmConversations,
+    servers,
+  ]);
+  const serverCount = servers.length;
 
   useEffect(() => {
     if (!isSupabaseReady) {
