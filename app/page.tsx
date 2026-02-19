@@ -6,7 +6,23 @@ const title = "Orbit: The Evolution of Communication";
 const description =
   "Orbit is a high-performance communication platform with realtime chat, voice/video, desktop + web parity, and built-in AI summaries and moderation.";
 const ogImage = "/orbit-icon-512.png";
-const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+function resolveAppUrl(rawUrl: string | undefined) {
+  const fallback = "http://localhost:3000";
+  const value = rawUrl?.trim();
+  if (!value) {
+    return fallback;
+  }
+
+  const normalized = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  try {
+    return new URL(normalized).toString().replace(/\/$/, "");
+  } catch {
+    return fallback;
+  }
+}
+
+const appUrl = resolveAppUrl(process.env.NEXT_PUBLIC_APP_URL);
 
 export const metadata: Metadata = {
   title,

@@ -7,13 +7,29 @@ const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
-const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+function resolveMetadataBase(rawUrl: string | undefined) {
+  const fallback = new URL("http://localhost:3000");
+  const value = rawUrl?.trim();
+  if (!value) {
+    return fallback;
+  }
+
+  const normalized = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  try {
+    return new URL(normalized);
+  } catch {
+    return fallback;
+  }
+}
+
+const metadataBase = resolveMetadataBase(process.env.NEXT_PUBLIC_APP_URL);
 
 export const metadata: Metadata = {
   title: "Orbit — The Evolution of Communication",
   description:
     "Orbit is a cosmic-grade collaboration platform with Unified Spaces and AI-ready architecture.",
-  metadataBase: new URL(appUrl),
+  metadataBase,
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
