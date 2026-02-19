@@ -1,5 +1,5 @@
-import { AppShell } from "@/components/app-shell";
+import { NeuralHubPage } from "@/src/components/landing/neural-hub-page";
 
 export default function Home() {
-  return <AppShell />;
+  return <NeuralHubPage />;
 }

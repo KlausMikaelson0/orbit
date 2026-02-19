@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  --background: #1e1f22;
-  --foreground: #f2f3f5;
+  --background: #06070b;
+  --foreground: #f7f7fb;
+  --orbit-violet: #8b5cf6;
 }
 
 @theme inline {
@@ -15,10 +16,11 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  text-rendering: optimizeLegibility;
 }
 
 * {
-  border-color: #3f4248;
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 html,
@@ -27,19 +29,49 @@ body {
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #202225;
+  background: #0e1018;
 }
 
 ::-webkit-scrollbar-thumb {
   border-radius: 9999px;
-  background: #4f545c;
+  background: rgba(139, 92, 246, 0.45);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #5865f2;
+  background: rgba(139, 92, 246, 0.75);
+}
+
+.glass-panel {
+  backdrop-filter: blur(18px);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.03)
+  );
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 70px rgba(2, 4, 11, 0.45);
+}
+
+.neon-ring {
+  box-shadow:
+    0 0 0 1px rgba(139, 92, 246, 0.35),
+    0 0 34px rgba(139, 92, 246, 0.22);
+}
+
+.orb-blur {
+  border-radius: 9999px;
+  filter: blur(70px);
+  pointer-events: none;
+}
+
+.cosmic-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 52px 52px;
 }

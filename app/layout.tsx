@@ -8,8 +8,9 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Orbit Chat",
-  description: "Discord-style realtime collaboration with Supabase and Next.js",
+  title: "Orbit — The Evolution of Communication",
+  description:
+    "Orbit is a cosmic-grade collaboration platform with Unified Spaces and AI-ready architecture.",
 };
 
 export default function RootLayout({
