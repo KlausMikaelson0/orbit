@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -52,11 +53,13 @@ export function MessageItem({ message, isOwnMessage }: MessageItemProps) {
                 target="_blank"
                 title="Open image in new tab"
               >
-                <img
+                <Image
                   alt="Message attachment"
                   className="max-h-72 w-auto rounded-md border border-[#4f545c] object-cover"
-                  loading="lazy"
+                  height={720}
                   src={message.file_url}
+                  unoptimized
+                  width={960}
                 />
               </a>
             ) : (

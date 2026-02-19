@@ -7,6 +7,8 @@ import { MessageSquare, UserPlus, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useOrbitSocialContext } from "@/src/context/orbit-social-context";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type { OrbitFriendView, OrbitProfile } from "@/src/types/orbit";
 
@@ -27,6 +29,7 @@ export function FriendsView({
   declineFriendRequest,
   openOrCreateDmWithProfile,
 }: FriendsViewProps) {
+  const { loadingSocial } = useOrbitSocialContext();
   const [tab, setTab] = useState<FriendsTab>("ALL");
   const [requestInput, setRequestInput] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -179,6 +182,7 @@ export function FriendsView({
           actionLabel="Message"
           emptyText="No friends yet. Add people to start direct conversations."
           friends={acceptedFriends}
+          loading={loadingSocial}
           onAction={async (friend) => {
             await openOrCreateDmWithProfile(friend.profile);
           }}
@@ -192,6 +196,7 @@ export function FriendsView({
             actionLabel="Accept"
             emptyText="No incoming requests."
             friends={pendingIncoming}
+            loading={loadingSocial}
             onAction={async (friend) => {
               setBusyId(friend.relationship.id);
               const result = await acceptFriendRequest(friend.relationship.id);
@@ -216,6 +221,7 @@ export function FriendsView({
             actionLabel="Cancel"
             emptyText="No outgoing requests."
             friends={pendingOutgoing}
+            loading={loadingSocial}
             onAction={async (friend) => {
               setBusyId(friend.relationship.id);
               const result = await declineFriendRequest(friend.relationship.id);
@@ -235,6 +241,7 @@ export function FriendsView({
 
 interface FriendListProps {
   friends: OrbitFriendView[];
+  loading?: boolean;
   emptyText: string;
   actionLabel: string;
   onAction: (friend: OrbitFriendView) => Promise<void>;
@@ -246,6 +253,7 @@ interface FriendListProps {
 
 function FriendList({
   friends,
+  loading = false,
   emptyText,
   actionLabel,
   onAction,
@@ -257,6 +265,14 @@ function FriendList({
   return (
     <div className="min-h-0 flex-1 rounded-2xl border border-white/10 bg-black/25 p-3">
       <div className="space-y-2">
+        {loading ? (
+          <>
+            <Skeleton className="h-14 rounded-xl" />
+            <Skeleton className="h-14 rounded-xl" />
+            <Skeleton className="h-14 rounded-xl" />
+          </>
+        ) : null}
+
         {friends.map((friend) => {
           const label =
             friend.profile.full_name ?? friend.profile.username ?? "Orbit User";
@@ -314,7 +330,7 @@ function FriendList({
             </div>
           );
         })}
-        {!friends.length ? (
+        {!loading && !friends.length ? (
           <div className="rounded-xl border border-dashed border-white/10 px-3 py-6 text-center text-sm text-zinc-400">
             {emptyText}
           </div>

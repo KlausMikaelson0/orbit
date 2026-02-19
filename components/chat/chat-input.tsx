@@ -1,6 +1,7 @@
 "use client";
 
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Loader2, Paperclip, Send, X } from "lucide-react";
 
@@ -131,10 +132,13 @@ export function ChatInput({ supabase, channelId, userId }: ChatInputProps) {
             </Button>
           </div>
           {previewUrl ? (
-            <img
+            <Image
               alt="Attachment preview"
               className="max-h-44 rounded-md border border-[#4f545c]"
+              height={320}
               src={previewUrl}
+              unoptimized
+              width={640}
             />
           ) : null}
         </div>

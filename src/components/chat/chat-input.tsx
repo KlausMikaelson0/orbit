@@ -1,11 +1,18 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { FileText, Loader2, Paperclip, SendHorizontal, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getConversationKey, isImageAttachment, isPdfAttachment } from "@/lib/utils";
+import {
+  buildOrbitPollMarkdown,
+  parseOrbitSlashCommand,
+  requestOrbitSummary,
+  scoreOrbitToxicity,
+} from "@/src/lib/orbit-bot";
 import { getOrbitSupabaseClient } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type { OrbitMember, OrbitMessageView, OrbitProfile } from "@/src/types/orbit";
@@ -15,6 +22,7 @@ interface ChatInputProps {
   conversationId: string | null;
   member: OrbitMember | null;
   profile: OrbitProfile | null;
+  threadParentId?: string | null;
 }
 
 export function ChatInput({
@@ -22,8 +30,13 @@ export function ChatInput({
   conversationId,
   member,
   profile,
+  threadParentId = null,
 }: ChatInputProps) {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
+  const conversationKey = getConversationKey(mode, conversationId);
+  const cachedMessages = useOrbitNavStore((state) =>
+    conversationKey ? state.messageCache[conversationKey] ?? [] : [],
+  );
   const upsertMessage = useOrbitNavStore((state) => state.upsertMessage);
   const replaceMessage = useOrbitNavStore((state) => state.replaceMessage);
   const removeMessage = useOrbitNavStore((state) => state.removeMessage);
@@ -34,8 +47,7 @@ export function ChatInput({
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const conversationKey = getConversationKey(mode, conversationId);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (!attachment) {
@@ -98,6 +110,128 @@ export function ChatInput({
 
     setSending(true);
     setError(null);
+    setNotice(null);
+
+    let contentToSend = trimmed;
+    const command = parseOrbitSlashCommand(trimmed);
+    if (command) {
+      if (mode !== "channel") {
+        setError("Slash commands are available only in server channels.");
+        setSending(false);
+        return;
+      }
+
+      if (command.kind === "summarize") {
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const { data, error: summaryFetchError } = await supabase
+          .from("messages")
+          .select(
+            "id, content, file_url, member_id, channel_id, thread_parent_id, created_at, updated_at, member:members(id, role, profile_id, server_id, created_at, updated_at, profile:profiles(id, username, tag, full_name, avatar_url, created_at, updated_at))",
+          )
+          .eq("channel_id", conversationId)
+          .gte("created_at", since)
+          .order("created_at", { ascending: true })
+          .limit(700);
+
+        if (summaryFetchError) {
+          setError(summaryFetchError.message);
+          setSending(false);
+          return;
+        }
+
+        const rows = (data ?? []) as unknown as Array<{
+          id: string;
+          content: string | null;
+          file_url: string | null;
+          member_id: string;
+          channel_id: string;
+          thread_parent_id: string | null;
+          created_at: string;
+          updated_at: string;
+          member?: {
+            profile_id: string;
+            profile?: OrbitProfile | OrbitProfile[] | null;
+          } | null;
+        }>;
+
+        const normalized = rows.map((row) => ({
+          id: row.id,
+          content: row.content,
+          file_url: row.file_url,
+          member_id: row.member_id,
+          channel_id: row.channel_id,
+          profile_id: row.member?.profile_id ?? null,
+          thread_id: null,
+          thread_parent_id: row.thread_parent_id,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+          author: {
+            member: null,
+            profile: Array.isArray(row.member?.profile)
+              ? row.member?.profile[0] ?? null
+              : row.member?.profile ?? null,
+          },
+        })) satisfies OrbitMessageView[];
+
+        const summaryInput = normalized.length
+          ? normalized
+          : cachedMessages.filter(
+              (message) =>
+                message.created_at >= since && !message.thread_parent_id,
+            );
+        const summary = await requestOrbitSummary(summaryInput);
+        contentToSend = `🤖 **Orbit-Bot /summarize (24h)**\n\n${summary}`;
+      } else if (command.kind === "poll") {
+        contentToSend = buildOrbitPollMarkdown(command.question, command.options);
+      } else if (command.kind === "clear") {
+        const { data: latestRows, error: latestError } = await supabase
+          .from("messages")
+          .select("id")
+          .eq("channel_id", conversationId)
+          .order("created_at", { ascending: false })
+          .limit(command.count);
+
+        if (latestError) {
+          setError(latestError.message);
+          setSending(false);
+          return;
+        }
+
+        const ids = (latestRows ?? []).map((row) => row.id);
+        if (!ids.length) {
+          setNotice("Orbit-Bot: no messages to clear.");
+          setContent("");
+          setAttachment(null);
+          setSending(false);
+          return;
+        }
+
+        const { error: clearError } = await supabase
+          .from("messages")
+          .delete()
+          .in("id", ids);
+
+        if (clearError) {
+          setError(clearError.message);
+          setSending(false);
+          return;
+        }
+
+        setNotice(`Orbit-Bot cleared ${ids.length} messages.`);
+        setContent("");
+        setAttachment(null);
+        if (attachmentInputRef.current) {
+          attachmentInputRef.current.value = "";
+        }
+        setSending(false);
+        return;
+      } else if (command.kind === "unknown") {
+        setError(`Unknown command: /${command.name}`);
+        setSending(false);
+        return;
+      }
+    }
+
     setContent("");
     const currentAttachment = attachment;
     setAttachment(null);
@@ -108,7 +242,7 @@ export function ChatInput({
     const tempId = `temp-${crypto.randomUUID()}`;
     const optimisticMessage: OrbitMessageView = {
       id: tempId,
-      content: trimmed || null,
+      content: contentToSend || null,
       file_url: currentAttachment
         ? attachmentPreview ?? `pending://${encodeURIComponent(currentAttachment.name)}`
         : null,
@@ -116,9 +250,18 @@ export function ChatInput({
       channel_id: mode === "channel" ? conversationId : null,
       profile_id: mode === "dm" ? profile.id : null,
       thread_id: mode === "dm" ? conversationId : null,
+      thread_parent_id: mode === "channel" ? threadParentId : null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       optimistic: true,
+      moderation: contentToSend
+        ? (() => {
+            const signal = scoreOrbitToxicity(contentToSend);
+            return signal.flagged
+              ? { score: signal.score, reason: signal.reason }
+              : null;
+          })()
+        : null,
       attachment: currentAttachment
         ? {
             name: currentAttachment.name,
@@ -155,10 +298,11 @@ export function ChatInput({
       const { data, error } = await supabase
         .from("messages")
         .insert({
-          content: trimmed || null,
+          content: contentToSend || null,
           file_url: fileUrl,
           member_id: member?.id ?? null,
           channel_id: conversationId,
+          thread_parent_id: threadParentId,
         })
         .select("*")
         .single();
@@ -168,7 +312,7 @@ export function ChatInput({
       const { data, error } = await supabase
         .from("dm_messages")
         .insert({
-          content: trimmed || null,
+          content: contentToSend || null,
           file_url: fileUrl,
           profile_id: profile.id,
           thread_id: conversationId,
@@ -198,9 +342,21 @@ export function ChatInput({
         mode === "dm" ? ((insertedRow.profile_id as string | null) ?? profile.id) : null,
       thread_id:
         mode === "dm" ? ((insertedRow.thread_id as string | null) ?? conversationId) : null,
+      thread_parent_id:
+        mode === "channel"
+          ? ((insertedRow.thread_parent_id as string | null) ?? threadParentId)
+          : null,
       created_at: String(insertedRow.created_at),
       updated_at: String(insertedRow.updated_at),
       optimistic: false,
+      moderation: contentToSend
+        ? (() => {
+            const signal = scoreOrbitToxicity(contentToSend);
+            return signal.flagged
+              ? { score: signal.score, reason: signal.reason }
+              : null;
+          })()
+        : null,
       attachment: currentAttachment
         ? {
             name: currentAttachment.name,
@@ -214,6 +370,20 @@ export function ChatInput({
     };
 
     replaceMessage(conversationKey, tempId, committedMessage);
+
+    if (mode === "channel" && committedMessage.moderation?.score && profile) {
+      void supabase.from("message_flags").upsert(
+        {
+          message_id: committedMessage.id,
+          flagged_by: profile.id,
+          model: "orbit-sentiment-v1",
+          score: committedMessage.moderation.score,
+          reason: committedMessage.moderation.reason,
+        },
+        { onConflict: "message_id,flagged_by,model" },
+      );
+    }
+
     setSending(false);
   }
 
@@ -244,10 +414,13 @@ export function ChatInput({
           </div>
 
           {attachmentPreview ? (
-            <img
+            <Image
               alt="Attachment preview"
-              className="max-h-40 rounded-lg border border-white/10"
+              className="max-h-40 w-auto rounded-lg border border-white/10"
+              height={360}
               src={attachmentPreview}
+              unoptimized
+              width={640}
             />
           ) : isPdfAttachment(attachment.name) ? (
             <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] p-2 text-sm text-zinc-300">
@@ -283,7 +456,9 @@ export function ChatInput({
           onChange={(event) => setContent(event.target.value)}
           placeholder={
             conversationId
-              ? "Transmit a message..."
+              ? threadParentId
+                ? "Reply to thread..."
+                : "Transmit a message..."
               : "Select a channel or DM to begin"
           }
           value={content}
@@ -304,6 +479,12 @@ export function ChatInput({
       </div>
 
       {error ? <p className="mt-2 text-xs text-red-300">{error}</p> : null}
+      {notice ? <p className="mt-2 text-xs text-emerald-300">{notice}</p> : null}
+      {mode === "channel" && !threadParentId ? (
+        <p className="mt-1 text-[11px] text-zinc-500">
+          Orbit-Bot commands: /summarize · /clear 20 · /poll Question | Option A | Option B
+        </p>
+      ) : null}
     </form>
   );
 }

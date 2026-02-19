@@ -12,6 +12,7 @@ import {
   Menu,
   Orbit,
   PanelRight,
+  Settings2,
   Sparkles,
   Users,
   UserPlus,
@@ -26,6 +27,7 @@ import { MembersSidebar } from "@/src/components/sidebar/members-sidebar";
 import { ServerSidebar } from "@/src/components/sidebar/server-sidebar";
 import { OrbitSocialProvider } from "@/src/context/orbit-social-context";
 import { useModal } from "@/src/hooks/use-modal";
+import { useOrbitThemeEngine } from "@/src/hooks/use-orbit-theme-engine";
 import { useOrbitSocial } from "@/src/hooks/use-orbit-social";
 import { useOrbitWorkspace } from "@/src/hooks/use-orbit-workspace";
 import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
@@ -41,6 +43,7 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const { onOpen } = useModal();
+  useOrbitThemeEngine();
   const {
     navSummary,
     mobilePanels,
@@ -199,6 +202,15 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
                 >
                   <UserPlus className="h-4 w-4" />
                   <span className="hidden sm:inline">Join</span>
+                </Button>
+                <Button
+                  className="rounded-full"
+                  onClick={() => onOpen("settings")}
+                  size="icon"
+                  title="Orbit Settings"
+                  variant="ghost"
+                >
+                  <Settings2 className="h-4 w-4" />
                 </Button>
                 <Button className="hidden rounded-full sm:inline-flex" size="sm" variant="secondary">
                   <Sparkles className="h-4 w-4" />

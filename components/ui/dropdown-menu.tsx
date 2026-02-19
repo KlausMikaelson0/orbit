@@ -75,7 +75,7 @@ function DropdownMenuSubContent({
   return (
     <DropdownMenuPrimitive.SubContent
       className={cn(
-        "z-50 min-w-[8rem] overflow-hidden rounded-md border border-white/10 bg-[#101119] p-1 text-[#f7f7fb] shadow-xl data-[state=open]:animate-in data-[state=closed]:animate-out",
+        "z-50 min-w-[8rem] overflow-hidden rounded-md border border-[color:var(--orbit-border)] bg-[color:var(--orbit-bg)] p-1 text-[color:var(--orbit-fg)] shadow-xl data-[state=open]:animate-in data-[state=closed]:animate-out",
         className,
       )}
       data-slot="dropdown-menu-sub-content"
@@ -93,7 +93,7 @@ function DropdownMenuContent({
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content
         className={cn(
-          "z-50 min-w-[8rem] overflow-hidden rounded-md border border-white/10 bg-[#101119] p-1 text-[#f7f7fb] shadow-xl data-[state=open]:animate-in data-[state=closed]:animate-out",
+          "z-50 min-w-[8rem] overflow-hidden rounded-md border border-[color:var(--orbit-border)] bg-[color:var(--orbit-bg)] p-1 text-[color:var(--orbit-fg)] shadow-xl data-[state=open]:animate-in data-[state=closed]:animate-out",
           className,
         )}
         data-slot="dropdown-menu-content"
@@ -200,7 +200,7 @@ function DropdownMenuSeparator({
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Separator>) {
   return (
     <DropdownMenuPrimitive.Separator
-      className={cn("-mx-1 my-1 h-px bg-white/10", className)}
+      className={cn("-mx-1 my-1 h-px bg-[color:var(--orbit-border)]", className)}
       data-slot="dropdown-menu-separator"
       {...props}
     />

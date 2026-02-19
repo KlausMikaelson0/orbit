@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BrainCircuit, Hash, RadioTower, Sparkles } from "lucide-react";
+import { BrainCircuit, Hash, RadioTower, Sparkles, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ChatInput } from "@/src/components/chat/chat-input";
 import { ChatMessages } from "@/src/components/chat/chat-messages";
+import { ChannelTasksPanel } from "@/src/components/chat/channel-tasks-panel";
 import { LivekitChannelRoom } from "@/src/components/live/livekit-channel-room";
 import { useOrbitSocialContext } from "@/src/context/orbit-social-context";
-import { mockChannelSummary } from "@/src/lib/mock-ai-summary";
+import { requestOrbitSummary } from "@/src/lib/orbit-bot";
 import { DmHomeView } from "@/src/components/social/dm-home-view";
 import { FriendsView } from "@/src/components/social/friends-view";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
@@ -50,6 +51,8 @@ export function OrbitChatWorkspace() {
   const [summarizing, setSummarizing] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [channelSurface, setChannelSurface] = useState<"CHAT" | "TASKS">("CHAT");
+  const [threadRootId, setThreadRootId] = useState<string | null>(null);
 
   const activeServer = servers.find((server) => server.id === activeServerId) ?? null;
   const activeChannels = activeServerId ? channelsByServer[activeServerId] ?? [] : [];
@@ -61,6 +64,8 @@ export function OrbitChatWorkspace() {
   const activeDmConversation = dmConversations.find(
     (conversation) => conversation.thread.id === activeDmThreadId,
   );
+  const isTextServerChannel =
+    activeView === "SERVER" && activeChannel?.type === "TEXT";
   const recentMessages = useMemo(
     () => {
       if (activeView === "DM_THREAD" && activeDmThreadId) {
@@ -73,10 +78,16 @@ export function OrbitChatWorkspace() {
     },
     [activeChannelId, activeDmThreadId, activeView, messageCache],
   );
+  const threadRootMessage = useMemo(
+    () => recentMessages.find((message) => message.id === threadRootId) ?? null,
+    [recentMessages, threadRootId],
+  );
 
   useEffect(() => {
     setSummary(null);
     setSummaryError(null);
+    setThreadRootId(null);
+    setChannelSurface("CHAT");
   }, [activeChannelId, activeDmThreadId]);
 
   async function summarizeChannel() {
@@ -87,7 +98,15 @@ export function OrbitChatWorkspace() {
     setSummarizing(true);
     setSummaryError(null);
     try {
-      const text = await mockChannelSummary(recentMessages.slice(-50));
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const text = await requestOrbitSummary(
+        recentMessages
+          .filter(
+            (message) =>
+              message.created_at >= since && !message.thread_parent_id,
+          )
+          .slice(-250),
+      );
       setSummary(text);
     } catch (error) {
       setSummaryError(error instanceof Error ? error.message : "Unable to summarize.");
@@ -134,9 +153,33 @@ export function OrbitChatWorkspace() {
 
       {activeView === "SERVER" || activeView === "DM_THREAD" ? (
         <div className="mb-3 flex items-center justify-between rounded-2xl border border-white/10 bg-black/25 px-3 py-2">
-          <div className="flex items-center gap-2 text-sm text-zinc-300">
-            <BrainCircuit className="h-4 w-4 text-violet-300" />
-            Orbit AI summarizer
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 text-sm text-zinc-300">
+              <BrainCircuit className="h-4 w-4 text-violet-300" />
+              Orbit AI summarizer
+            </div>
+            {isTextServerChannel ? (
+              <div className="ml-2 flex items-center gap-1">
+                <Button
+                  className="rounded-full"
+                  onClick={() => setChannelSurface("CHAT")}
+                  size="sm"
+                  type="button"
+                  variant={channelSurface === "CHAT" ? "default" : "secondary"}
+                >
+                  Chat
+                </Button>
+                <Button
+                  className="rounded-full"
+                  onClick={() => setChannelSurface("TASKS")}
+                  size="sm"
+                  type="button"
+                  variant={channelSurface === "TASKS" ? "default" : "secondary"}
+                >
+                  Tasks
+                </Button>
+              </div>
+            ) : null}
           </div>
           <Button
             className="rounded-full"
@@ -216,22 +259,69 @@ export function OrbitChatWorkspace() {
           />
         </div>
       ) : (
-        <>
-          <div className={`min-h-0 flex-1 ${privacyMode ? "privacy-shield" : ""}`}>
-            <div className="privacy-content h-full">
-              <ChatMessages
-                conversationId={activeChannel.id}
-                mode="channel"
-              />
-            </div>
-          </div>
-          <ChatInput
-            conversationId={activeChannel.id}
-            member={currentMember}
-            mode="channel"
-            profile={profile}
+        channelSurface === "TASKS" && isTextServerChannel ? (
+          <ChannelTasksPanel
+            channelId={activeChannel.id}
+            profileId={profile?.id ?? null}
           />
-        </>
+        ) : (
+          <>
+            <div className={`min-h-0 flex-1 ${privacyMode ? "privacy-shield" : ""}`}>
+              <div className="privacy-content h-full">
+                <ChatMessages
+                  conversationId={activeChannel.id}
+                  mode="channel"
+                  onOpenThread={(message) => setThreadRootId(message.id)}
+                />
+              </div>
+            </div>
+            <ChatInput
+              conversationId={activeChannel.id}
+              member={currentMember}
+              mode="channel"
+              profile={profile}
+            />
+
+            {threadRootId && threadRootMessage ? (
+              <div className="mt-3 rounded-2xl border border-white/10 bg-black/25 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="min-w-0">
+                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
+                      Threaded replies
+                    </p>
+                    <p className="truncate text-sm text-zinc-200">
+                      {threadRootMessage.content ?? "Attachment thread"}
+                    </p>
+                  </div>
+                  <Button
+                    className="rounded-full"
+                    onClick={() => setThreadRootId(null)}
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="h-64">
+                  <ChatMessages
+                    conversationId={activeChannel.id}
+                    mode="channel"
+                    threadParentId={threadRootId}
+                    useCacheOnly
+                  />
+                </div>
+                <ChatInput
+                  conversationId={activeChannel.id}
+                  member={currentMember}
+                  mode="channel"
+                  profile={profile}
+                  threadParentId={threadRootId}
+                />
+              </div>
+            ) : null}
+          </>
+        )
       )}
     </div>
   );

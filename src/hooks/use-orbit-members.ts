@@ -9,6 +9,7 @@ import type {
   OrbitMember,
   OrbitMemberWithProfile,
   OrbitProfile,
+  OrbitServerBot,
   OrbitServer,
 } from "@/src/types/orbit";
 
@@ -27,6 +28,7 @@ export function useOrbitMembers(user: User | null, serverId: string | null) {
   const [loading, setLoading] = useState(false);
   const [members, setMembers] = useState<OrbitMemberWithProfile[]>([]);
   const [onlineProfileIds, setOnlineProfileIds] = useState<Set<string>>(new Set());
+  const [bot, setBot] = useState<OrbitServerBot | null>(null);
 
   const activeServer = useMemo<OrbitServer | null>(
     () => servers.find((server) => server.id === serverId) ?? null,
@@ -42,19 +44,23 @@ export function useOrbitMembers(user: User | null, serverId: string | null) {
   const fetchMembers = useCallback(async () => {
     if (!serverId) {
       setMembers([]);
+      setBot(null);
       return;
     }
 
     setLoading(true);
-    const { data } = await supabase
-      .from("members")
-      .select(
-        "id, role, profile_id, server_id, created_at, updated_at, profile:profiles(id, username, tag, full_name, avatar_url, created_at, updated_at)",
-      )
-      .eq("server_id", serverId)
-      .order("created_at", { ascending: true });
+    const [membersResult, botResult] = await Promise.all([
+      supabase
+        .from("members")
+        .select(
+          "id, role, profile_id, server_id, created_at, updated_at, profile:profiles(id, username, tag, full_name, avatar_url, created_at, updated_at)",
+        )
+        .eq("server_id", serverId)
+        .order("created_at", { ascending: true }),
+      supabase.from("orbit_bots").select("*").eq("server_id", serverId).maybeSingle(),
+    ]);
 
-    const rows = (data ?? []) as unknown as MemberProfileRow[];
+    const rows = (membersResult.data ?? []) as unknown as MemberProfileRow[];
     const normalized = rows.map((row) => {
       const profile = Array.isArray(row.profile) ? row.profile[0] ?? null : row.profile;
       return {
@@ -72,6 +78,7 @@ export function useOrbitMembers(user: User | null, serverId: string | null) {
     });
 
     setMembers(normalized);
+    setBot((botResult.data ?? null) as OrbitServerBot | null);
     setLoading(false);
   }, [serverId, supabase]);
 
@@ -99,6 +106,16 @@ export function useOrbitMembers(user: User | null, serverId: string | null) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "profiles" },
+        () => void fetchMembers(),
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "orbit_bots",
+          filter: `server_id=eq.${serverId}`,
+        },
         () => void fetchMembers(),
       )
       .subscribe();
@@ -235,6 +252,7 @@ export function useOrbitMembers(user: User | null, serverId: string | null) {
   return {
     loading,
     members: membersWithStatus,
+    bot,
     isAdmin,
     currentMember,
     kickMember,

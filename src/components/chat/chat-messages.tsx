@@ -1,11 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
+import ReactMarkdown from "react-markdown";
 import { FileText, Loader2, Orbit } from "lucide-react";
+import remarkGfm from "remark-gfm";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatTime, getConversationKey, isImageAttachment, isPdfAttachment } from "@/lib/utils";
+import { scoreOrbitToxicity } from "@/src/lib/orbit-bot";
 import {
   notifyOrbitMessage,
   playOrbitPingSound,
@@ -17,9 +22,18 @@ import type { OrbitMessage, OrbitMessageView } from "@/src/types/orbit";
 interface ChatMessagesProps {
   mode: "channel" | "dm";
   conversationId: string | null;
+  threadParentId?: string | null;
+  useCacheOnly?: boolean;
+  onOpenThread?: (message: OrbitMessageView) => void;
 }
 
-export function ChatMessages({ mode, conversationId }: ChatMessagesProps) {
+export function ChatMessages({
+  mode,
+  conversationId,
+  threadParentId = null,
+  useCacheOnly = false,
+  onOpenThread,
+}: ChatMessagesProps) {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -45,6 +59,7 @@ export function ChatMessages({ mode, conversationId }: ChatMessagesProps) {
         file_url: string | null;
         member_id: string;
         channel_id: string;
+        thread_parent_id: string | null;
         created_at: string;
         updated_at: string;
         member?: {
@@ -74,6 +89,7 @@ export function ChatMessages({ mode, conversationId }: ChatMessagesProps) {
         channel_id: source.channel_id,
         profile_id: source.member?.profile_id ?? null,
         thread_id: null,
+        thread_parent_id: source.thread_parent_id ?? null,
         created_at: source.created_at,
         updated_at: source.updated_at,
         author: {
@@ -113,6 +129,7 @@ export function ChatMessages({ mode, conversationId }: ChatMessagesProps) {
         channel_id: null,
         profile_id: source.profile_id,
         thread_id: source.thread_id,
+        thread_parent_id: null,
         created_at: source.created_at,
         updated_at: source.updated_at,
         author: {
@@ -134,7 +151,7 @@ export function ChatMessages({ mode, conversationId }: ChatMessagesProps) {
       const { data } = await supabase
         .from("messages")
         .select(
-          "id, content, file_url, member_id, channel_id, created_at, updated_at, member:members(id, role, profile_id, server_id, created_at, updated_at, profile:profiles(id, username, tag, full_name, avatar_url, created_at, updated_at))",
+          "id, content, file_url, member_id, channel_id, thread_parent_id, created_at, updated_at, member:members(id, role, profile_id, server_id, created_at, updated_at, profile:profiles(id, username, tag, full_name, avatar_url, created_at, updated_at))",
         )
         .eq("channel_id", conversationId)
         .order("created_at", { ascending: true })
@@ -191,15 +208,15 @@ export function ChatMessages({ mode, conversationId }: ChatMessagesProps) {
   );
 
   useEffect(() => {
-    if (!conversationId) {
+    if (!conversationId || useCacheOnly) {
       return;
     }
 
     void fetchMessages();
-  }, [conversationId, fetchMessages]);
+  }, [conversationId, fetchMessages, useCacheOnly]);
 
   useEffect(() => {
-    if (!conversationId || !conversationKey) {
+    if (!conversationId || !conversationKey || useCacheOnly) {
       return;
     }
 
@@ -311,16 +328,60 @@ export function ChatMessages({ mode, conversationId }: ChatMessagesProps) {
     mode,
     notifyIfIncoming,
     removeMessage,
-    setMessages,
     supabase,
+    useCacheOnly,
   ]);
+
+  const threadReplyCountByMessageId = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const message of messages) {
+      if (!message.thread_parent_id) {
+        continue;
+      }
+      counts.set(
+        message.thread_parent_id,
+        (counts.get(message.thread_parent_id) ?? 0) + 1,
+      );
+    }
+    return counts;
+  }, [messages]);
+
+  const visibleMessages = useMemo(() => {
+    if (mode !== "channel") {
+      return messages;
+    }
+
+    if (threadParentId) {
+      const root = messages.find((message) => message.id === threadParentId) ?? null;
+      const replies = messages.filter(
+        (message) => message.thread_parent_id === threadParentId,
+      );
+      return root ? [root, ...replies] : replies;
+    }
+
+    return messages.filter((message) => !message.thread_parent_id);
+  }, [messages, mode, threadParentId]);
+
+  const moderationSignals = useMemo(() => {
+    const signals = new Map<string, { score: number; reason: string }>();
+    for (const message of visibleMessages) {
+      const toxicity = scoreOrbitToxicity(message.content);
+      if (toxicity.flagged) {
+        signals.set(message.id, {
+          score: toxicity.score,
+          reason: toxicity.reason,
+        });
+      }
+    }
+    return signals;
+  }, [visibleMessages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth",
       block: "end",
     });
-  }, [messages.length]);
+  }, [visibleMessages.length]);
 
   if (!conversationId) {
     return (
@@ -333,11 +394,15 @@ export function ChatMessages({ mode, conversationId }: ChatMessagesProps) {
   return (
     <ScrollArea className="h-full rounded-2xl border border-white/10 bg-black/20">
       <div className="space-y-1 p-3">
-        {messages.map((message) => {
+        {visibleMessages.map((message) => {
           const displayName =
             message.author.profile?.full_name ??
             message.author.profile?.username ??
             "Unknown";
+          const replyCount = threadReplyCountByMessageId.get(message.id) ?? 0;
+          const signal = moderationSignals.get(message.id) ?? null;
+          const isThreadRoot = threadParentId === message.id;
+          const isReply = Boolean(message.thread_parent_id);
 
           return (
             <article
@@ -363,26 +428,68 @@ export function ChatMessages({ mode, conversationId }: ChatMessagesProps) {
                     Sending
                   </span>
                 ) : null}
+                {isThreadRoot ? (
+                  <span className="rounded-full border border-sky-400/35 px-2 py-0.5 text-[10px] text-sky-200">
+                    Thread root
+                  </span>
+                ) : null}
+                {isReply ? (
+                  <span className="rounded-full border border-sky-400/35 px-2 py-0.5 text-[10px] text-sky-200">
+                    Reply
+                  </span>
+                ) : null}
+                {signal ? (
+                  <span
+                    className="rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-200"
+                    title={signal.reason}
+                  >
+                    Orbit-Bot flagged ({Math.round(signal.score * 100)}%)
+                  </span>
+                ) : null}
               </div>
 
               {message.content ? (
-                <p className="text-sm leading-relaxed text-zinc-200">{message.content}</p>
+                <div className="text-sm leading-relaxed text-zinc-200 [&_a]:text-violet-300 [&_code]:rounded [&_code]:bg-white/[0.08] [&_code]:px-1 [&_code]:py-0.5 [&_ol]:list-inside [&_ol]:list-decimal [&_p]:mb-1 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-black/35 [&_pre]:p-2 [&_ul]:list-inside [&_ul]:list-disc">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {message.content}
+                  </ReactMarkdown>
+                </div>
               ) : null}
               {message.file_url ? <AttachmentPreview message={message} /> : null}
+
+              {mode === "channel" && !threadParentId && onOpenThread && !isReply ? (
+                <button
+                  className="mt-2 inline-flex rounded-full border border-sky-400/35 px-2.5 py-1 text-[11px] text-sky-200 transition hover:bg-sky-500/10"
+                  onClick={() => onOpenThread(message)}
+                  type="button"
+                >
+                  Reply in thread{replyCount > 0 ? ` (${replyCount})` : ""}
+                </button>
+              ) : null}
             </article>
           );
         })}
 
-        {loading && messages.length === 0 ? (
-          <div className="flex items-center justify-center py-8 text-zinc-400">
-            <Loader2 className="h-4 w-4 animate-spin" />
+        {loading && visibleMessages.length === 0 ? (
+          <div className="space-y-2 py-2">
+            <div className="flex items-center gap-2 text-zinc-400">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading messages...
+            </div>
+            <Skeleton className="h-14 rounded-xl" />
+            <Skeleton className="h-14 rounded-xl" />
+            <Skeleton className="h-14 rounded-xl" />
           </div>
         ) : null}
 
-        {!loading && messages.length === 0 ? (
+        {!loading && visibleMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-10 text-center text-zinc-400">
             <Orbit className="h-6 w-6 text-violet-300" />
-            <p className="text-sm">No messages yet. Say hello to your crew.</p>
+            <p className="text-sm">
+              {threadParentId
+                ? "No replies yet. Start the thread."
+                : "No messages yet. Say hello to your crew."}
+            </p>
           </div>
         ) : null}
         <div ref={messagesEndRef} />
@@ -417,10 +524,13 @@ function AttachmentPreview({ message }: { message: OrbitMessageView }) {
   if (isImage) {
     return (
       <a href={resolvedUrl ?? ""} rel="noreferrer" target="_blank">
-        <img
+        <Image
           alt={attachmentName}
-          className="mt-2 max-h-72 rounded-lg border border-white/10 object-cover"
+          className="mt-2 max-h-72 w-auto rounded-lg border border-white/10 object-cover"
+          height={720}
           src={resolvedUrl ?? ""}
+          unoptimized
+          width={960}
         />
       </a>
     );

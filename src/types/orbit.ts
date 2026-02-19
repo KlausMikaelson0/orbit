@@ -2,6 +2,8 @@ export type ChannelType = "TEXT" | "AUDIO" | "VIDEO";
 export type MemberRole = "ADMIN" | "MODERATOR" | "GUEST";
 export type OrbitViewMode = "SERVER" | "DM_HOME" | "DM_THREAD" | "FRIENDS";
 export type RelationshipStatus = "PENDING" | "ACCEPTED" | "BLOCKED";
+export type OrbitThemePreset = "MIDNIGHT" | "ONYX" | "CYBERPUNK" | "CUSTOM";
+export type OrbitTaskStatus = "TODO" | "IN_PROGRESS" | "DONE";
 
 export interface OrbitProfile {
   id: string;
@@ -69,11 +71,13 @@ export interface OrbitMessageView {
   channel_id: string | null;
   profile_id: string | null;
   thread_id: string | null;
+  thread_parent_id: string | null;
   created_at: string;
   updated_at: string;
   author: OrbitMessageAuthor;
   optimistic?: boolean;
   attachment?: OrbitAttachmentMeta | null;
+  moderation?: OrbitModerationSignal | null;
 }
 
 export interface OrbitNavSummary {
@@ -137,4 +141,41 @@ export interface OrbitFriendView {
   relationship: OrbitRelationship;
   profile: OrbitProfile;
   online: boolean;
+}
+
+export interface OrbitServerBot {
+  id: string;
+  server_id: string;
+  name: string;
+  provider: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitModerationSignal {
+  score: number;
+  reason: string;
+}
+
+export interface OrbitMessageFlag {
+  id: string;
+  message_id: string;
+  flagged_by: string;
+  model: string;
+  score: number;
+  reason: string;
+  created_at: string;
+}
+
+export interface OrbitChannelTask {
+  id: string;
+  channel_id: string;
+  creator_profile_id: string;
+  content: string;
+  status: OrbitTaskStatus;
+  due_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  creator: OrbitProfile | null;
 }

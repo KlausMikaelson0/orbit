@@ -8,10 +8,12 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-[#4f545c] text-[#b5bac1]",
+        default:
+          "border-[color:var(--orbit-border)] text-[color:var(--orbit-subtle-text)]",
         admin: "border-red-400/50 bg-red-500/10 text-red-300",
         moderator: "border-indigo-400/50 bg-indigo-500/10 text-indigo-300",
-        guest: "border-[#4f545c] bg-[#4f545c]/20 text-[#b5bac1]",
+        guest:
+          "border-[color:var(--orbit-border)] bg-[color:var(--orbit-panel)] text-[color:var(--orbit-subtle-text)]",
       },
     },
     defaultVariants: {

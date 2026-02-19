@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { MoreHorizontal, ShieldCheck, Users } from "lucide-react";
+import { Bot, MoreHorizontal, ShieldCheck, Users } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useOrbitMembers } from "@/src/hooks/use-orbit-members";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type { MemberRole, OrbitMemberWithProfile } from "@/src/types/orbit";
@@ -38,7 +39,7 @@ function roleLabel(role: MemberRole) {
 export function MembersSidebar({ user, mobile = false }: MembersSidebarProps) {
   const [actionError, setActionError] = useState<string | null>(null);
   const activeServerId = useOrbitNavStore((state) => state.activeServerId);
-  const { members, loading, isAdmin, kickMember, banMember } = useOrbitMembers(
+  const { members, bot, loading, isAdmin, kickMember, banMember } = useOrbitMembers(
     user,
     activeServerId,
   );
@@ -91,6 +92,7 @@ export function MembersSidebar({ user, mobile = false }: MembersSidebarProps) {
       ) : null}
 
       <ScrollArea className="h-[calc(100%-5.5rem)]">
+        {bot ? <OrbitBotRow name={bot.name} /> : null}
         <MemberSection
           isAdmin={isAdmin}
           label={`Online — ${onlineMembers.length}`}
@@ -110,12 +112,36 @@ export function MembersSidebar({ user, mobile = false }: MembersSidebarProps) {
 
         {loading ? (
           <div className="space-y-2 px-1 py-2">
-            <div className="h-10 animate-pulse rounded-xl bg-white/[0.07]" />
-            <div className="h-10 animate-pulse rounded-xl bg-white/[0.07]" />
+            <Skeleton className="h-10 rounded-xl" />
+            <Skeleton className="h-10 rounded-xl" />
           </div>
         ) : null}
       </ScrollArea>
     </aside>
+  );
+}
+
+function OrbitBotRow({ name }: { name: string }) {
+  return (
+    <section className="mb-4">
+      <p className="mb-2 px-1 text-[11px] uppercase tracking-[0.14em] text-zinc-500">
+        Automation
+      </p>
+      <div className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-2 py-1.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="rounded-lg bg-cyan-500/20 p-1.5 text-cyan-200">
+              <Bot className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-cyan-100">{name}</p>
+              <p className="text-[11px] text-cyan-200/80">AI moderation online</p>
+            </div>
+          </div>
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+        </div>
+      </div>
+    </section>
   );
 }
 

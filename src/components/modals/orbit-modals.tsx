@@ -13,7 +13,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useModal } from "@/src/hooks/use-modal";
+import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type { ChannelType } from "@/src/types/orbit";
 
 interface ActionResult {
@@ -46,10 +48,18 @@ export function OrbitModals({
   const [channelName, setChannelName] = useState("");
   const [channelType, setChannelType] = useState<ChannelType>("TEXT");
   const [inviteCode, setInviteCode] = useState("");
+  const { themePreset, customThemeCss, setThemePreset, setCustomThemeCss } =
+    useOrbitNavStore((state) => ({
+      themePreset: state.themePreset,
+      customThemeCss: state.customThemeCss,
+      setThemePreset: state.setThemePreset,
+      setCustomThemeCss: state.setCustomThemeCss,
+    }));
 
   const createServerOpen = isOpen && type === "createServer";
   const createChannelOpen = isOpen && type === "createChannel";
   const joinServerOpen = isOpen && type === "joinServer";
+  const settingsOpen = isOpen && type === "settings";
 
   const modalServerId = useMemo(() => data.serverId ?? null, [data.serverId]);
 
@@ -234,6 +244,77 @@ export function OrbitModals({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog onOpenChange={(open) => !open && resetAndClose()} open={settingsOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Orbit Settings</DialogTitle>
+            <DialogDescription>
+              Theme engine · choose your visual mode instantly.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
+              Theme selector
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: "MIDNIGHT", label: "Midnight" },
+                { value: "ONYX", label: "Onyx (True Black)" },
+                { value: "CYBERPUNK", label: "Cyberpunk (Neon)" },
+                { value: "CUSTOM", label: "Custom CSS" },
+              ].map((item) => (
+                <Button
+                  className="justify-start rounded-xl"
+                  key={item.value}
+                  onClick={() =>
+                    setThemePreset(
+                      item.value as "MIDNIGHT" | "ONYX" | "CYBERPUNK" | "CUSTOM",
+                    )
+                  }
+                  type="button"
+                  variant={themePreset === item.value ? "default" : "secondary"}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
+                  Custom CSS
+                </p>
+                <Button
+                  className="rounded-full"
+                  onClick={() => setThemePreset("CUSTOM")}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  Use custom
+                </Button>
+              </div>
+              <Textarea
+                className="min-h-40 rounded-xl border-white/15 bg-black/35 font-mono text-xs"
+                onChange={(event) => setCustomThemeCss(event.target.value)}
+                placeholder=":root { --orbit-accent: #7c3aed; --orbit-panel: #12131c; }"
+                value={customThemeCss}
+              />
+              <p className="text-[11px] text-zinc-500">
+                Custom CSS is injected only when the Custom CSS theme is active.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={resetAndClose} type="button">
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

@@ -1,6 +1,10 @@
 import { create } from "zustand";
 
-export type OrbitModalType = "createServer" | "createChannel" | "joinServer";
+export type OrbitModalType =
+  | "createServer"
+  | "createChannel"
+  | "joinServer"
+  | "settings";
 
 interface OrbitModalData {
   serverId?: string;

@@ -3,6 +3,8 @@
 import { MessageCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useOrbitSocialContext } from "@/src/context/orbit-social-context";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 
 interface DmHomeViewProps {
@@ -10,6 +12,7 @@ interface DmHomeViewProps {
 }
 
 export function DmHomeView({ onOpenFriends }: DmHomeViewProps) {
+  const { loadingSocial } = useOrbitSocialContext();
   const { dmConversations, onlineProfileIds, setActiveDmThread } = useOrbitNavStore(
     (state) => ({
       dmConversations: state.dmConversations,
@@ -33,6 +36,14 @@ export function DmHomeView({ onOpenFriends }: DmHomeViewProps) {
 
       <div className="min-h-0 flex-1 rounded-2xl border border-white/10 bg-black/25 p-3">
         <div className="space-y-2">
+          {loadingSocial ? (
+            <>
+              <Skeleton className="h-14 rounded-xl" />
+              <Skeleton className="h-14 rounded-xl" />
+              <Skeleton className="h-14 rounded-xl" />
+            </>
+          ) : null}
+
           {dmConversations.map((conversation) => {
             const profile = conversation.otherProfile;
             const displayName = profile.full_name ?? profile.username ?? "Orbit User";
@@ -61,7 +72,7 @@ export function DmHomeView({ onOpenFriends }: DmHomeViewProps) {
             );
           })}
 
-          {!dmConversations.length ? (
+          {!loadingSocial && !dmConversations.length ? (
             <div className="rounded-xl border border-dashed border-white/10 px-3 py-8 text-center text-zinc-400">
               <MessageCircle className="mx-auto mb-2 h-5 w-5 text-violet-300" />
               <p className="text-sm">No conversations yet. Add friends to start DMs.</p>

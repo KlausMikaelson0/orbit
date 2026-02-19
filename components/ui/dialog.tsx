@@ -60,7 +60,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed left-1/2 top-1/2 z-50 grid w-[min(92vw,32rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border border-[#2b2d31] bg-[#313338] p-6 text-[#f2f3f5] shadow-xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out",
+          "fixed left-1/2 top-1/2 z-50 grid w-[min(92vw,32rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border border-[color:var(--orbit-border)] bg-[color:var(--orbit-bg)]/95 p-6 text-[color:var(--orbit-fg)] shadow-xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out",
           className,
         )}
         {...props}
@@ -117,7 +117,7 @@ function DialogDescription({
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
-      className={cn("text-sm text-[#b5bac1]", className)}
+      className={cn("text-sm text-[color:var(--orbit-subtle-text)]", className)}
       {...props}
     />
   );
