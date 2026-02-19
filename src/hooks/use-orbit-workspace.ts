@@ -20,7 +20,7 @@ interface WorkspaceActionResult<T = void> {
 }
 
 interface MembershipRow extends OrbitMember {
-  server: OrbitServer | null;
+  server: OrbitServer | OrbitServer[] | null;
 }
 
 export function useOrbitWorkspace(user: User | null) {
@@ -92,8 +92,12 @@ export function useOrbitWorkspace(user: User | null) {
       .eq("profile_id", user.id)
       .order("created_at", { ascending: true });
 
-    const rows = (data ?? []) as MembershipRow[];
+    const rows = (data ?? []) as unknown as MembershipRow[];
     const formatted = rows
+      .map((row) => ({
+        ...row,
+        server: Array.isArray(row.server) ? row.server[0] ?? null : row.server,
+      }))
       .filter((row): row is MembershipRow & { server: OrbitServer } => Boolean(row.server))
       .map((row) => ({
         member: {
