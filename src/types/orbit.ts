@@ -61,14 +61,19 @@ export interface OrbitAttachmentMeta {
   mimeType: string;
 }
 
-export interface OrbitMessageView extends OrbitMessage {
+export interface OrbitMessageView {
+  id: string;
+  content: string | null;
+  file_url: string | null;
+  member_id: string | null;
+  channel_id: string | null;
+  profile_id: string | null;
+  thread_id: string | null;
+  created_at: string;
+  updated_at: string;
   author: OrbitMessageAuthor;
   optimistic?: boolean;
   attachment?: OrbitAttachmentMeta | null;
-  member_id?: string | null;
-  channel_id?: string | null;
-  profile_id?: string | null;
-  thread_id?: string | null;
 }
 
 export interface OrbitNavSummary {
