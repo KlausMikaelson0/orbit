@@ -4,11 +4,23 @@ import { ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
-import { Bot, Loader2, LogOut, Orbit, Sparkles, WandSparkles } from "lucide-react";
+import {
+  Bot,
+  Loader2,
+  LogOut,
+  Orbit,
+  Sparkles,
+  UserPlus,
+  WandSparkles,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { OrbitModals } from "@/src/components/modals/orbit-modals";
+import { ChannelSidebar } from "@/src/components/sidebar/channel-sidebar";
+import { ServerSidebar } from "@/src/components/sidebar/server-sidebar";
+import { useModal } from "@/src/hooks/use-modal";
+import { useOrbitWorkspace } from "@/src/hooks/use-orbit-workspace";
 import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
-import { DynamicNavigation } from "@/src/components/navigation/dynamic-navigation";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 
 interface OrbitDashboardShellProps {
@@ -20,7 +32,10 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
   const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const { onOpen } = useModal();
   const navSummary = useOrbitNavStore((state) => state.getSummary());
+  const { loadingServers, loadingChannels, createServer, createChannel, joinServerByInvite } =
+    useOrbitWorkspace(session?.user ?? null);
 
   useEffect(() => {
     if (!isSupabaseReady) {
@@ -99,19 +114,29 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
       <div className="orb-blur absolute -right-24 bottom-0 h-96 w-96 bg-fuchsia-500/20" />
 
       <div className="relative mx-auto flex h-screen w-full max-w-[1700px] gap-4 p-4">
-        <DynamicNavigation />
+        <ServerSidebar loading={loadingServers} />
+        <ChannelSidebar />
 
         <section className="flex min-w-0 flex-1 flex-col gap-4">
           <header className="glass-panel flex h-[72px] items-center justify-between rounded-[1.75rem] px-5">
             <div className="min-w-0">
               <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
-                {navSummary.activeSpaceName}
+                {navSummary.activeServerName}
               </p>
               <p className="truncate text-lg font-semibold text-violet-100">
                 #{navSummary.activeChannelName}
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                className="rounded-full"
+                onClick={() => onOpen("joinServer")}
+                size="sm"
+                variant="outline"
+              >
+                <UserPlus className="h-4 w-4" />
+                Join
+              </Button>
               <Button className="rounded-full" size="sm" variant="secondary">
                 <Sparkles className="h-4 w-4" />
                 Orbit AI Soon
@@ -132,11 +157,22 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
             <p className="text-xs uppercase tracking-[0.14em] text-violet-200">AI-ready rail</p>
             <h2 className="mt-1 text-lg font-semibold">Orbit Pulse</h2>
             <p className="mt-2 text-sm text-zinc-300">
-              Context engines, summaries, and action suggestions will dock here.
+              Context engines, summaries, and action suggestions dock here.
             </p>
           </div>
 
           <div className="space-y-3">
+            <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+              <div className="mb-2 flex items-center gap-2 text-violet-200">
+                <Sparkles className="h-4 w-4" />
+                <p className="text-sm font-medium">Workspace Sync</p>
+              </div>
+              <p className="text-xs leading-relaxed text-zinc-300">
+                {loadingChannels
+                  ? "Refreshing active channel state..."
+                  : "Channel transitions stay instant with cached message timelines."}
+              </p>
+            </div>
             <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
               <div className="mb-2 flex items-center gap-2 text-violet-200">
                 <Bot className="h-4 w-4" />
@@ -158,6 +194,12 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
           </div>
         </aside>
       </div>
+
+      <OrbitModals
+        createChannel={createChannel}
+        createServer={createServer}
+        joinServerByInvite={joinServerByInvite}
+      />
     </div>
   );
 }
