@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
@@ -94,17 +93,15 @@ Deno.serve(async (request) => {
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    const [channelsResult, membersCountResult, membersResult] = await Promise.all([
+    const [channelsResult, membersCountResult] = await Promise.all([
       admin.from("channels").select("id").eq("server_id", serverId),
       admin
         .from("members")
         .select("id", { head: true, count: "exact" })
         .eq("server_id", serverId),
-      admin.from("members").select("profile_id").eq("server_id", serverId),
     ]);
 
     const channelIds = (channelsResult.data ?? []).map((row) => row.id);
-    const memberProfiles = (membersResult.data ?? []).map((row) => row.profile_id);
 
     let messages: Array<{
       created_at: string;
