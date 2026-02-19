@@ -10,6 +10,7 @@ import type {
   OrbitRelationship,
   OrbitServer,
   OrbitServerMembership,
+  OrbitLocale,
   OrbitThemePreset,
   OrbitViewMode,
 } from "@/src/types/orbit";
@@ -29,6 +30,7 @@ interface OrbitNavState {
   activeChannelId: string | null;
   activeDmThreadId: string | null;
   privacyMode: boolean;
+  locale: OrbitLocale;
   themePreset: OrbitThemePreset;
   customThemeCss: string;
   mobilePanels: {
@@ -57,6 +59,7 @@ interface OrbitNavState {
   toggleCollapsed: () => void;
   setPrivacyMode: (value: boolean) => void;
   togglePrivacyMode: () => void;
+  setLocale: (locale: OrbitLocale) => void;
   setThemePreset: (preset: OrbitThemePreset) => void;
   setCustomThemeCss: (css: string) => void;
   setMobilePanelOpen: (
@@ -90,6 +93,7 @@ export const useOrbitNavStore = create<OrbitNavState>((set, get) => ({
   activeChannelId: null,
   activeDmThreadId: null,
   privacyMode: false,
+  locale: "en",
   themePreset: "MIDNIGHT",
   customThemeCss: "",
   mobilePanels: {
@@ -273,6 +277,7 @@ export const useOrbitNavStore = create<OrbitNavState>((set, get) => ({
   setPrivacyMode: (value) => set({ privacyMode: value }),
   togglePrivacyMode: () =>
     set((state) => ({ privacyMode: !state.privacyMode })),
+  setLocale: (locale) => set({ locale }),
   setThemePreset: (preset) => set({ themePreset: preset }),
   setCustomThemeCss: (css) => set({ customThemeCss: css }),
   setMobilePanelOpen: (panel, open) =>

@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { OrbitLanguagePicker } from "@/src/components/i18n/orbit-language-picker";
+import { useOrbitLocale } from "@/src/hooks/use-orbit-locale";
 
 type DownloadTarget = {
   label: string;
@@ -55,41 +57,39 @@ function detectDesktopTarget() {
 
 const whyOrbitCards = [
   {
-    title: "Pure Speed",
-    description:
-      "Next.js-powered rendering and instant realtime sync keep Orbit feeling unbelievably fast at scale.",
+    titleKey: "landing.speedTitle" as const,
+    descriptionKey: "landing.speedDesc" as const,
     icon: Zap,
   },
   {
-    title: "Privacy First",
-    description:
-      "No ad-driven dark patterns. End-to-end trust, secure auth, and collaboration controls built in.",
+    titleKey: "landing.privacyTitle" as const,
+    descriptionKey: "landing.privacyDesc" as const,
     icon: Lock,
   },
   {
-    title: "Built-in AI",
-    description:
-      "AI summaries, moderation insights, and command workflows make every channel cleaner and smarter.",
+    titleKey: "landing.aiTitle" as const,
+    descriptionKey: "landing.aiDesc" as const,
     icon: BrainCircuit,
   },
 ];
 
 const orbitSteps = [
   {
-    title: "Create your Space",
-    description: "Launch your first server and shape channels for your team or community.",
+    titleKey: "landing.step1Title" as const,
+    descriptionKey: "landing.step1Desc" as const,
   },
   {
-    title: "Invite your Orbitals",
-    description: "Share an invite code to bring friends and teammates into your ecosystem.",
+    titleKey: "landing.step2Title" as const,
+    descriptionKey: "landing.step2Desc" as const,
   },
   {
-    title: "Launch instantly",
-    description: "Switch to voice, video, or text rooms with no lag and no clutter.",
+    titleKey: "landing.step3Title" as const,
+    descriptionKey: "landing.step3Desc" as const,
   },
 ];
 
 export function OrbitLandingPage() {
+  const { t } = useOrbitLocale();
   const [downloadTarget, setDownloadTarget] = useState<DownloadTarget>(
     DOWNLOAD_TARGETS.windows,
   );
@@ -156,30 +156,31 @@ export function OrbitLandingPage() {
 
           <nav className="hidden items-center gap-6 text-sm text-zinc-300 md:flex">
             <a className="transition hover:text-white" href="#features">
-              Features
+              {t("landing.features")}
             </a>
             <a className="transition hover:text-white" href="#about">
-              About
+              {t("landing.about")}
             </a>
             <a className="transition hover:text-white" href="#safety">
-              Safety
+              {t("landing.safety")}
             </a>
           </nav>
 
           <div className="flex items-center gap-2">
+            <OrbitLanguagePicker compact showLabel={false} />
             <a
               className="hidden rounded-full px-3 py-2 text-xs text-zinc-300 transition hover:text-white md:inline-flex"
               href={downloadTarget.href}
               rel="noreferrer"
               target="_blank"
             >
-              Download
+              {t("landing.download")}
             </a>
             <Button asChild className="rounded-full" size="sm" variant="ghost">
-              <Link href="/auth">Login</Link>
+              <Link href="/auth">{t("landing.login")}</Link>
             </Button>
             <Button asChild className="rounded-full px-4" size="sm">
-              <Link href="/dashboard">Open Orbit in Browser</Link>
+              <Link href="/dashboard">{t("landing.openBrowser")}</Link>
             </Button>
           </div>
         </header>
@@ -188,14 +189,13 @@ export function OrbitLandingPage() {
           <div>
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-violet-400/30 bg-violet-500/10 px-4 py-1.5 text-xs text-violet-200">
               <Sparkles className="h-3.5 w-3.5" />
-              Orbit Desktop + Browser Ecosystem
+              {t("landing.badge")}
             </div>
             <h1 className="mb-5 text-4xl font-semibold leading-tight sm:text-5xl lg:text-6xl">
-              Orbit: The Evolution of Communication.
+              {t("landing.heroTitle")}
             </h1>
             <p className="mb-8 max-w-2xl text-base text-zinc-300 sm:text-lg">
-              A faster, cleaner, and AI-powered space for your communities. Built
-              for the next generation.
+              {t("landing.heroSubtitle")}
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <a
@@ -204,7 +204,7 @@ export function OrbitLandingPage() {
                 rel="noreferrer"
                 target="_blank"
               >
-                Download for {downloadTarget.label}
+                {t("landing.downloadFor", { label: downloadTarget.label })}
                 <ArrowRight className="h-4 w-4" />
               </a>
               <Button
@@ -212,28 +212,30 @@ export function OrbitLandingPage() {
                 className="h-12 rounded-full border border-white/15 bg-white/[0.04] px-6 text-sm text-zinc-100 hover:bg-white/[0.08]"
                 variant="ghost"
               >
-                <Link href="/dashboard">Open in your browser</Link>
+                <Link href="/dashboard">{t("landing.openInBrowser")}</Link>
               </Button>
             </div>
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-black/25 p-6 backdrop-blur">
             <p className="mb-3 text-xs uppercase tracking-[0.15em] text-zinc-400">
-              Orbit Runtime
+              {t("landing.runtime")}
             </p>
             <div className="grid gap-3">
               <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                <p className="text-xs text-zinc-400">Realtime latency</p>
+                <p className="text-xs text-zinc-400">{t("landing.realtimeLatency")}</p>
                 <p className="mt-1 text-3xl font-semibold text-violet-200">&lt; 200ms</p>
               </div>
               <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                <p className="text-xs text-zinc-400">Desktop + Web parity</p>
-                <p className="mt-1 text-2xl font-semibold text-cyan-200">One ecosystem</p>
+                <p className="text-xs text-zinc-400">{t("landing.desktopWebParity")}</p>
+                <p className="mt-1 text-2xl font-semibold text-cyan-200">
+                  {t("landing.oneEcosystem")}
+                </p>
               </div>
               <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                <p className="text-xs text-zinc-400">AI + Moderation rails</p>
+                <p className="text-xs text-zinc-400">{t("landing.aiRails")}</p>
                 <p className="mt-1 text-2xl font-semibold text-fuchsia-200">
-                  Built-in by default
+                  {t("landing.builtInByDefault")}
                 </p>
               </div>
             </div>
@@ -241,71 +243,77 @@ export function OrbitLandingPage() {
         </section>
 
         <section className="mb-20" id="features">
-          <h2 className="mb-2 text-3xl font-semibold">Why Orbit?</h2>
+          <h2 className="mb-2 text-3xl font-semibold">{t("landing.whyTitle")}</h2>
           <p className="mb-6 text-zinc-300">
-            Everything your communities need, without the legacy clutter.
+            {t("landing.whySubtitle")}
           </p>
           <div className="grid gap-4 md:grid-cols-3">
             {whyOrbitCards.map((card) => (
               <article
                 className="rounded-2xl border border-white/10 bg-black/25 p-5"
-                key={card.title}
+                key={card.titleKey}
               >
                 <div className="mb-3 inline-flex rounded-xl bg-violet-500/15 p-2.5 text-violet-200">
                   <card.icon className="h-5 w-5" />
                 </div>
-                <h3 className="mb-2 text-lg font-semibold">{card.title}</h3>
-                <p className="text-sm leading-relaxed text-zinc-300">{card.description}</p>
+                <h3 className="mb-2 text-lg font-semibold">{t(card.titleKey)}</h3>
+                <p className="text-sm leading-relaxed text-zinc-300">
+                  {t(card.descriptionKey)}
+                </p>
               </article>
             ))}
           </div>
         </section>
 
         <section className="mb-20">
-          <h2 className="mb-2 text-3xl font-semibold">How to Orbit</h2>
+          <h2 className="mb-2 text-3xl font-semibold">{t("landing.howTitle")}</h2>
           <p className="mb-6 text-zinc-300">
-            Go live in minutes and scale from friend group to global community.
+            {t("landing.howSubtitle")}
           </p>
           <div className="grid gap-4 md:grid-cols-3">
             {orbitSteps.map((step, index) => (
               <article
                 className="rounded-2xl border border-white/10 bg-black/25 p-5"
-                key={step.title}
+                key={step.titleKey}
               >
                 <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-cyan-500/20 text-sm font-semibold text-cyan-100">
                   {index + 1}
                 </div>
-                <h3 className="mb-2 text-lg font-semibold">{step.title}</h3>
-                <p className="text-sm leading-relaxed text-zinc-300">{step.description}</p>
+                <h3 className="mb-2 text-lg font-semibold">{t(step.titleKey)}</h3>
+                <p className="text-sm leading-relaxed text-zinc-300">
+                  {t(step.descriptionKey)}
+                </p>
               </article>
             ))}
           </div>
         </section>
 
         <section className="mb-20" id="safety">
-          <h2 className="mb-2 text-3xl font-semibold">Safety by design</h2>
+          <h2 className="mb-2 text-3xl font-semibold">{t("landing.safetyTitle")}</h2>
           <p className="mb-6 text-zinc-300">
-            Built for trust with moderation systems, privacy controls, and secure auth rails.
+            {t("landing.safetySubtitle")}
           </p>
           <div className="grid gap-4 md:grid-cols-2">
             <article className="rounded-2xl border border-white/10 bg-black/25 p-5">
               <div className="mb-3 inline-flex rounded-xl bg-emerald-500/20 p-2.5 text-emerald-200">
                 <ShieldCheck className="h-5 w-5" />
               </div>
-              <h3 className="mb-2 text-lg font-semibold">Platform Security</h3>
+              <h3 className="mb-2 text-lg font-semibold">
+                {t("landing.platformSecurityTitle")}
+              </h3>
               <p className="text-sm text-zinc-300">
-                2FA support, rate limiting, image moderation checks, and role-based controls keep
-                every space protected.
+                {t("landing.platformSecurityDesc")}
               </p>
             </article>
             <article className="rounded-2xl border border-white/10 bg-black/25 p-5">
               <div className="mb-3 inline-flex rounded-xl bg-violet-500/20 p-2.5 text-violet-200">
                 <Users2 className="h-5 w-5" />
               </div>
-              <h3 className="mb-2 text-lg font-semibold">Community Integrity</h3>
+              <h3 className="mb-2 text-lg font-semibold">
+                {t("landing.communityIntegrityTitle")}
+              </h3>
               <p className="text-sm text-zinc-300">
-                Real-time presence, moderation tooling, and smart bot APIs give owners clarity and
-                control over growth.
+                {t("landing.communityIntegrityDesc")}
               </p>
             </article>
           </div>
@@ -314,14 +322,11 @@ export function OrbitLandingPage() {
         <section className="rounded-3xl border border-white/10 bg-black/30 p-7" id="about">
           <div className="mb-3 inline-flex rounded-full border border-violet-400/30 bg-violet-500/10 px-3 py-1 text-xs text-violet-200">
             <Rocket className="mr-1.5 h-3.5 w-3.5" />
-            About Orbit
+            {t("landing.aboutBadge")}
           </div>
-          <h2 className="mb-3 text-3xl font-semibold">A free, open, and modern communication core.</h2>
+          <h2 className="mb-3 text-3xl font-semibold">{t("landing.aboutTitle")}</h2>
           <p className="max-w-4xl text-sm leading-relaxed text-zinc-300 sm:text-base">
-            We built Orbit to be a powerful alternative to cluttered legacy apps: lightning-fast
-            messaging, thoughtful design, desktop-grade reliability, and AI-assisted collaboration
-            in one seamless platform. Orbit is crafted for builders, communities, and teams who
-            want clarity, control, and momentum.
+            {t("landing.aboutDesc")}
           </p>
         </section>
       </div>

@@ -17,7 +17,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { SwipeDismissable } from "@/components/ui/swipe-dismissable";
 import { Textarea } from "@/components/ui/textarea";
+import { OrbitLanguagePicker } from "@/src/components/i18n/orbit-language-picker";
 import { useModal } from "@/src/hooks/use-modal";
+import { useOrbitLocale } from "@/src/hooks/use-orbit-locale";
 import { useOrbitRuntime } from "@/src/hooks/use-orbit-runtime";
 import { getOrbitSupabaseClient } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
@@ -67,6 +69,7 @@ export function OrbitModals({
     qrCode: string;
     secret: string;
   } | null>(null);
+  const { t } = useOrbitLocale();
   const { isElectron, platformLabel } = useOrbitRuntime();
   const { themePreset, customThemeCss, setThemePreset, setCustomThemeCss } =
     useOrbitNavStore(
@@ -445,6 +448,14 @@ export function OrbitModals({
                     Custom CSS is injected only when the Custom CSS theme is active.
                   </p>
                 </div>
+              </section>
+
+              <section className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
+                  {t("settings.languageTitle")}
+                </p>
+                <p className="text-sm text-zinc-300">{t("settings.languageHelp")}</p>
+                <OrbitLanguagePicker showLabel={false} />
               </section>
 
               <section className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-3">

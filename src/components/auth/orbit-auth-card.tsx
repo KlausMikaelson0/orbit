@@ -2,19 +2,55 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Loader2, Orbit, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { OrbitLanguagePicker } from "@/src/components/i18n/orbit-language-picker";
+import { useOrbitLocale } from "@/src/hooks/use-orbit-locale";
 import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
 
 type OrbitAuthMode = "signin" | "signup";
 
+function normalizePublicUrl(rawValue: string | undefined) {
+  const value = rawValue?.trim();
+  if (!value) {
+    return null;
+  }
+
+  const normalized = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  try {
+    return new URL(normalized).toString().replace(/\/$/, "");
+  } catch {
+    return null;
+  }
+}
+
+function resolveOAuthRedirectBase() {
+  const explicitAuthBase = normalizePublicUrl(process.env.NEXT_PUBLIC_AUTH_REDIRECT_URL);
+  if (explicitAuthBase) {
+    return explicitAuthBase;
+  }
+
+  const appBase = normalizePublicUrl(process.env.NEXT_PUBLIC_APP_URL);
+  if (appBase) {
+    return appBase;
+  }
+
+  if (typeof window !== "undefined") {
+    return window.location.origin;
+  }
+
+  return "http://localhost:3000";
+}
+
 export function OrbitAuthCard() {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { t } = useOrbitLocale();
   const [mode, setMode] = useState<OrbitAuthMode>("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -35,10 +71,20 @@ export function OrbitAuthCard() {
     });
   }, [router, supabase]);
 
+  useEffect(() => {
+    const oauthError = searchParams.get("error");
+    if (!oauthError) {
+      return;
+    }
+
+    setError(oauthError);
+    setMessage(null);
+  }, [searchParams]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!isSupabaseReady) {
-      setError("Supabase is not configured yet. Add NEXT_PUBLIC_SUPABASE_* variables.");
+      setError(t("auth.notConfigured"));
       return;
     }
 
@@ -48,7 +94,7 @@ export function OrbitAuthCard() {
 
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail || !password) {
-      setError("Email and password are required.");
+      setError(t("auth.emailPasswordRequired"));
       setLoading(false);
       return;
     }
@@ -86,16 +132,14 @@ export function OrbitAuthCard() {
       return;
     }
 
-    setMessage(
-      "Account created. Verify your email if confirmation is enabled, then sign in.",
-    );
+    setMessage(t("auth.accountCreated"));
     setMode("signin");
     setLoading(false);
   }
 
   async function handleGoogle() {
     if (!isSupabaseReady) {
-      setError("Supabase is not configured yet. Add NEXT_PUBLIC_SUPABASE_* variables.");
+      setError(t("auth.notConfigured"));
       return;
     }
 
@@ -103,24 +147,27 @@ export function OrbitAuthCard() {
     setError(null);
     setMessage(null);
 
+    const oauthRedirectBase = resolveOAuthRedirectBase();
+    const redirectTo = `${oauthRedirectBase}/auth/callback?next=${encodeURIComponent("/dashboard")}`;
+
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo,
       },
     });
 
     if (oauthError) {
-      setError(oauthError.message);
+      setError(`${oauthError.message} ${t("auth.oauthSetupHelp")}`);
       setLoading(false);
     }
   }
 
-  const title = mode === "signin" ? "Welcome back to Orbit" : "Create your Orbit identity";
+  const title = mode === "signin" ? t("auth.welcomeBack") : t("auth.createIdentity");
   const subtitle =
     mode === "signin"
-      ? "Continue your mission in Unified Spaces."
-      : "Spin up your workspace and invite your team.";
+      ? t("auth.subtitleSignin")
+      : t("auth.subtitleSignup");
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#06070b] px-4 py-12 text-white">
@@ -138,14 +185,17 @@ export function OrbitAuthCard() {
 
       <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-6 lg:grid lg:grid-cols-[1.1fr_0.9fr]">
         <div className="glass-panel rounded-3xl p-8">
-          <div className="mb-8 flex items-center gap-3">
-            <div className="rounded-2xl bg-violet-500/20 p-3 text-violet-200">
-              <Orbit className="h-6 w-6" />
+          <div className="mb-8 flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-violet-500/20 p-3 text-violet-200">
+                <Orbit className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xl font-semibold">{t("auth.orbitAuth")}</p>
+                <p className="text-sm text-zinc-400">{t("auth.secureFastRealtime")}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xl font-semibold">Orbit Auth</p>
-              <p className="text-sm text-zinc-400">Secure. Fast. Realtime-native.</p>
-            </div>
+            <OrbitLanguagePicker compact showLabel={false} />
           </div>
 
           <h1 className="mb-2 text-3xl font-semibold">{title}</h1>
@@ -156,27 +206,27 @@ export function OrbitAuthCard() {
               <Input
                 className="h-11 rounded-xl bg-black/30"
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Your name"
+                placeholder={t("auth.namePlaceholder")}
                 value={name}
               />
             ) : null}
             <Input
               className="h-11 rounded-xl bg-black/30"
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@orbit.team"
+              placeholder={t("auth.emailPlaceholder")}
               type="email"
               value={email}
             />
             <Input
               className="h-11 rounded-xl bg-black/30"
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="••••••••"
+              placeholder={t("auth.passwordPlaceholder")}
               type="password"
               value={password}
             />
             <Button className="h-11 w-full rounded-xl text-sm" disabled={loading} type="submit">
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {mode === "signin" ? "Sign in to Orbit" : "Create Orbit account"}
+              {mode === "signin" ? t("auth.signInButton") : t("auth.createButton")}
             </Button>
           </form>
 
@@ -186,7 +236,7 @@ export function OrbitAuthCard() {
             onClick={handleGoogle}
             variant="outline"
           >
-            Continue with Google
+            {t("auth.googleButton")}
           </Button>
 
           <button
@@ -200,8 +250,8 @@ export function OrbitAuthCard() {
             type="button"
           >
             {mode === "signin"
-              ? "Need an account? Create one"
-              : "Already have an account? Sign in"}
+              ? t("auth.needAccount")
+              : t("auth.haveAccount")}
           </button>
 
           {message ? (
@@ -220,26 +270,24 @@ export function OrbitAuthCard() {
           <div>
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-violet-400/30 bg-violet-500/10 px-4 py-1.5 text-xs text-violet-200">
               <Sparkles className="h-3.5 w-3.5" />
-              Orbit Identity Layer
+              {t("auth.identityLayer")}
             </div>
-            <h2 className="mb-3 text-2xl font-semibold">Your mission starts with one secure node.</h2>
+            <h2 className="mb-3 text-2xl font-semibold">{t("auth.missionTitle")}</h2>
             <p className="text-sm leading-relaxed text-zinc-300">
-              Orbit Auth is tuned for modern product teams: email/password,
-              Google OAuth, and Supabase session continuity that scales from MVP to
-              global realtime collaboration.
+              {t("auth.missionDescription")}
             </p>
           </div>
           <div className="mt-8 space-y-3">
             <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-              <p className="text-xs text-zinc-400">Session continuity</p>
-              <p className="text-lg font-semibold text-violet-200">Cross-tab synced</p>
+              <p className="text-xs text-zinc-400">{t("auth.sessionContinuity")}</p>
+              <p className="text-lg font-semibold text-violet-200">{t("auth.crossTabSynced")}</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-              <p className="text-xs text-zinc-400">OAuth readiness</p>
-              <p className="text-lg font-semibold text-violet-200">Google enabled</p>
+              <p className="text-xs text-zinc-400">{t("auth.oauthReadiness")}</p>
+              <p className="text-lg font-semibold text-violet-200">{t("auth.googleEnabled")}</p>
             </div>
             <Button asChild className="w-full rounded-xl" variant="ghost">
-              <Link href="/">Back to Neural Hub</Link>
+              <Link href="/">{t("auth.backHome")}</Link>
             </Button>
           </div>
         </div>

@@ -91,10 +91,14 @@ This generates artifacts in `release/` (e.g. NSIS `.exe`, macOS `.dmg`).
 Required:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_APP_URL` (e.g. `https://your-app.vercel.app`)
 - `SUPABASE_SERVICE_ROLE_KEY` (required for developer API + edge analytics)
 - `NEXT_PUBLIC_LIVEKIT_URL`
 - `LIVEKIT_API_KEY`
 - `LIVEKIT_API_SECRET`
+
+Optional but recommended for stable OAuth redirects:
+- `NEXT_PUBLIC_AUTH_REDIRECT_URL` (explicit OAuth base URL, e.g. `https://your-app.vercel.app`)
 
 Optional AI provider keys (Orbit-Bot summarize endpoint):
 - `ANTHROPIC_API_KEY`
@@ -124,7 +128,8 @@ Also make sure Supabase Auth providers include:
 - Google OAuth
 
 Callback URL:
-- `/auth/callback`
+- `https://your-app-domain/auth/callback`
+- for Vercel previews, add your preview domain callback too (or use a wildcard pattern supported by Supabase).
 
 ## LiveKit setup
 

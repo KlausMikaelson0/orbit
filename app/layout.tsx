@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
+import { OrbitLocaleRegister } from "@/src/components/i18n/orbit-locale-register";
 import { OrbitPwaRegister } from "@/src/components/pwa/orbit-pwa-register";
 import "./globals.css";
 
@@ -64,6 +65,7 @@ export default function RootLayout({
     >
       <body className={`${geistSans.variable} antialiased`}>
         <OrbitPwaRegister />
+        <OrbitLocaleRegister />
         {children}
       </body>
     </html>

@@ -32,6 +32,7 @@ import { ServerSidebar } from "@/src/components/sidebar/server-sidebar";
 import { OrbitSocialProvider } from "@/src/context/orbit-social-context";
 import { useModal } from "@/src/hooks/use-modal";
 import { useOrbitInstallPrompt } from "@/src/hooks/use-orbit-install-prompt";
+import { useOrbitLocale } from "@/src/hooks/use-orbit-locale";
 import { useOrbitThemeEngine } from "@/src/hooks/use-orbit-theme-engine";
 import { useOrbitSocial } from "@/src/hooks/use-orbit-social";
 import { useOrbitWorkspace } from "@/src/hooks/use-orbit-workspace";
@@ -56,6 +57,7 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const { onOpen } = useModal();
+  const { t } = useOrbitLocale();
   useOrbitThemeEngine();
   const { canInstall, triggerInstall } = useOrbitInstallPrompt();
   const {
@@ -179,11 +181,9 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#06070b] px-4 text-white">
         <div className="glass-panel max-w-xl rounded-3xl p-8">
-          <h1 className="mb-3 text-2xl font-semibold">Supabase setup required</h1>
+          <h1 className="mb-3 text-2xl font-semibold">{t("dashboard.supabaseSetupRequired")}</h1>
           <p className="text-sm text-zinc-300">
-            Add <code>NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
-            <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in{" "}
-            <code>.env.local</code> to activate Orbit Auth and realtime sync.
+            {t("dashboard.supabaseSetupHelp")}
           </p>
         </div>
       </div>
@@ -195,12 +195,12 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
       <div className="flex min-h-screen items-center justify-center bg-[#06070b] px-4 text-white">
         <div className="glass-panel max-w-lg rounded-3xl p-8 text-center">
           <Orbit className="mx-auto mb-3 h-7 w-7 text-violet-300" />
-          <h1 className="mb-2 text-2xl font-semibold">Authentication required</h1>
+          <h1 className="mb-2 text-2xl font-semibold">{t("dashboard.authenticationRequired")}</h1>
           <p className="mb-5 text-sm text-zinc-300">
-            Sign in to enter Orbit Dashboard and unlock Unified Spaces.
+            {t("dashboard.authenticationHelp")}
           </p>
           <Button asChild className="rounded-full px-6">
-            <Link href="/auth">Go to Orbit Auth</Link>
+            <Link href="/auth">{t("dashboard.goToAuth")}</Link>
           </Button>
         </div>
       </div>
@@ -282,7 +282,7 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
                   variant="outline"
                 >
                   <UserPlus className="h-4 w-4" />
-                  <span className="hidden sm:inline">Join</span>
+                  <span className="hidden sm:inline">{t("dashboard.join")}</span>
                 </Button>
                 <Button
                   className="rounded-full"

@@ -4,6 +4,7 @@ export type OrbitViewMode = "SERVER" | "DM_HOME" | "DM_THREAD" | "FRIENDS";
 export type RelationshipStatus = "PENDING" | "ACCEPTED" | "BLOCKED";
 export type OrbitThemePreset = "MIDNIGHT" | "ONYX" | "CYBERPUNK" | "CUSTOM";
 export type OrbitTaskStatus = "TODO" | "IN_PROGRESS" | "DONE";
+export type OrbitLocale = "en" | "ar" | "tr";
 
 export interface OrbitProfile {
   id: string;
