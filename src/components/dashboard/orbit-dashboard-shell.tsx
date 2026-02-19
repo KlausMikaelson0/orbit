@@ -143,7 +143,7 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
                 <p className="text-sm font-medium">Neural Insight</p>
               </div>
               <p className="text-xs leading-relaxed text-zinc-300">
-                "Launch-control thread velocity has increased 28% in the last 6 hours."
+                Launch-control thread velocity has increased 28% in the last 6 hours.
               </p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-black/30 p-4">

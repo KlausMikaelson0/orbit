@@ -48,7 +48,7 @@ export default function DashboardHomePage() {
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
               <p className="font-medium text-violet-100">Launch-control brief</p>
               <p className="mt-1 text-zinc-300">
-                Draft executive summary for tomorrow's release call.
+                Draft executive summary for tomorrow release call.
               </p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
