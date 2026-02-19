@@ -13,6 +13,7 @@ import {
   requestOrbitSummary,
   scoreOrbitToxicity,
 } from "@/src/lib/orbit-bot";
+import { moderateOrbitImageFilename } from "@/src/lib/orbit-image-moderation";
 import { getOrbitSupabaseClient } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type { OrbitMember, OrbitMessageView, OrbitProfile } from "@/src/types/orbit";
@@ -32,6 +33,8 @@ export function ChatInput({
   profile,
   threadParentId = null,
 }: ChatInputProps) {
+  const RATE_WINDOW_MS = 10_000;
+  const RATE_LIMIT_COUNT = 8;
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
   const conversationKey = getConversationKey(mode, conversationId);
   const cachedMessages = useOrbitNavStore((state) =>
@@ -41,6 +44,7 @@ export function ChatInput({
   const replaceMessage = useOrbitNavStore((state) => state.replaceMessage);
   const removeMessage = useOrbitNavStore((state) => state.removeMessage);
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
+  const sendTimestampsRef = useRef<number[]>([]);
 
   const [content, setContent] = useState("");
   const [attachment, setAttachment] = useState<File | null>(null);
@@ -71,6 +75,13 @@ export function ChatInput({
   async function uploadAttachment(file: File) {
     if (!conversationId || !profile) {
       throw new Error("Missing conversation context.");
+    }
+
+    if (file.type.startsWith("image/")) {
+      const moderation = moderateOrbitImageFilename(file.name);
+      if (!moderation.safe) {
+        throw new Error(moderation.reason ?? "Image blocked by moderation.");
+      }
     }
 
     const extension = file.name.split(".").pop() ?? "file";
@@ -107,6 +118,16 @@ export function ChatInput({
     if (!trimmed && !attachment) {
       return;
     }
+
+    const now = Date.now();
+    sendTimestampsRef.current = sendTimestampsRef.current.filter(
+      (timestamp) => now - timestamp < RATE_WINDOW_MS,
+    );
+    if (sendTimestampsRef.current.length >= RATE_LIMIT_COUNT) {
+      setError("Rate limit reached. Please slow down for a few seconds.");
+      return;
+    }
+    sendTimestampsRef.current.push(now);
 
     setSending(true);
     setError(null);

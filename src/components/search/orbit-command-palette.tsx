@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Command } from "cmdk";
 import { Hash, Home, Search, UserRound, Users } from "lucide-react";
 
@@ -17,6 +17,8 @@ export function OrbitCommandPalette({
   openOrCreateDmWithProfile,
 }: OrbitCommandPaletteProps) {
   const [open, setOpen] = useState(false);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const {
     servers,
     channelsByServer,
@@ -73,7 +75,35 @@ export function OrbitCommandPalette({
       onOpenChange={setOpen}
       open={open}
     >
-      <div className="mx-auto mt-20 w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-[#0c0d15] shadow-2xl">
+      <div
+        className="mx-auto mt-20 w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-[#0c0d15] shadow-2xl transition-transform duration-150"
+        onTouchEnd={() => {
+          if (swipeOffset > 90) {
+            setOpen(false);
+          }
+          setSwipeOffset(0);
+          touchStartRef.current = null;
+        }}
+        onTouchMove={(event) => {
+          const touch = event.touches[0];
+          if (!touchStartRef.current || !touch) {
+            return;
+          }
+          const dy = touch.clientY - touchStartRef.current.y;
+          const dx = touch.clientX - touchStartRef.current.x;
+          if (Math.abs(dy) > Math.abs(dx) && dy > 0) {
+            setSwipeOffset(dy);
+          }
+        }}
+        onTouchStart={(event) => {
+          const touch = event.touches[0];
+          if (!touch) {
+            return;
+          }
+          touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+        }}
+        style={{ transform: `translateY(${Math.max(0, swipeOffset)}px)` }}
+      >
         <div className="flex items-center gap-2 border-b border-white/10 px-3">
           <Search className="h-4 w-4 text-zinc-400" />
           <Command.Input

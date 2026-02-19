@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 
+import { getOrbitRequestIp } from "@/src/lib/orbit-developer-api";
+import { checkOrbitRateLimit } from "@/src/lib/rate-limit";
+
+export const runtime = "nodejs";
+
 interface SummaryInputMessage {
   author?: string;
   content?: string;
@@ -94,6 +99,24 @@ async function requestOpenAiSummary(prompt: string) {
 }
 
 export async function POST(request: Request) {
+  const ip = getOrbitRequestIp(request);
+  const rate = checkOrbitRateLimit({
+    key: `orbit-ai-summarize:${ip}`,
+    limit: 20,
+    windowMs: 60_000,
+  });
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { summary: "Orbit-Bot is cooling down. Please retry in a moment." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rate.retryAfterSeconds),
+        },
+      },
+    );
+  }
+
   try {
     const payload = (await request.json()) as { messages?: SummaryInputMessage[] };
     const messages = (payload.messages ?? []).slice(-250);

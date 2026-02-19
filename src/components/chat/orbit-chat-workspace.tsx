@@ -1,18 +1,27 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BrainCircuit, Hash, RadioTower, Sparkles, X } from "lucide-react";
+import dynamic from "next/dynamic";
+import { BarChart3, BrainCircuit, Hash, RadioTower, Sparkles, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ServerAnalyticsDashboard } from "@/src/components/analytics/server-analytics-dashboard";
 import { ChatInput } from "@/src/components/chat/chat-input";
 import { ChatMessages } from "@/src/components/chat/chat-messages";
 import { ChannelTasksPanel } from "@/src/components/chat/channel-tasks-panel";
-import { LivekitChannelRoom } from "@/src/components/live/livekit-channel-room";
 import { useOrbitSocialContext } from "@/src/context/orbit-social-context";
 import { requestOrbitSummary } from "@/src/lib/orbit-bot";
 import { DmHomeView } from "@/src/components/social/dm-home-view";
 import { FriendsView } from "@/src/components/social/friends-view";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
+
+const LivekitChannelRoom = dynamic(
+  () =>
+    import("@/src/components/live/livekit-channel-room").then(
+      (mod) => mod.LivekitChannelRoom,
+    ),
+  { ssr: false },
+);
 
 export function OrbitChatWorkspace() {
   const {
@@ -53,6 +62,7 @@ export function OrbitChatWorkspace() {
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [channelSurface, setChannelSurface] = useState<"CHAT" | "TASKS">("CHAT");
   const [threadRootId, setThreadRootId] = useState<string | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   const activeServer = servers.find((server) => server.id === activeServerId) ?? null;
   const activeChannels = activeServerId ? channelsByServer[activeServerId] ?? [] : [];
@@ -61,6 +71,11 @@ export function OrbitChatWorkspace() {
   const currentMember = activeServerId
     ? membershipsByServer[activeServerId] ?? null
     : null;
+  const canViewAnalytics = Boolean(
+    activeServer &&
+      profile &&
+      activeServer.owner_id === profile.id,
+  );
   const activeDmConversation = dmConversations.find(
     (conversation) => conversation.thread.id === activeDmThreadId,
   );
@@ -88,6 +103,7 @@ export function OrbitChatWorkspace() {
     setSummaryError(null);
     setThreadRootId(null);
     setChannelSurface("CHAT");
+    setShowAnalytics(false);
   }, [activeChannelId, activeDmThreadId]);
 
   async function summarizeChannel() {
@@ -180,6 +196,18 @@ export function OrbitChatWorkspace() {
                 </Button>
               </div>
             ) : null}
+            {canViewAnalytics ? (
+              <Button
+                className="rounded-full"
+                onClick={() => setShowAnalytics((value) => !value)}
+                size="sm"
+                type="button"
+                variant={showAnalytics ? "default" : "secondary"}
+              >
+                <BarChart3 className="h-4 w-4" />
+                Analytics
+              </Button>
+            ) : null}
           </div>
           <Button
             className="rounded-full"
@@ -204,6 +232,12 @@ export function OrbitChatWorkspace() {
         <p className="mb-3 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
           {summaryError}
         </p>
+      ) : null}
+      {showAnalytics ? (
+        <ServerAnalyticsDashboard
+          enabled={canViewAnalytics}
+          serverId={activeServer?.id ?? null}
+        />
       ) : null}
 
       {activeView === "FRIENDS" ? (

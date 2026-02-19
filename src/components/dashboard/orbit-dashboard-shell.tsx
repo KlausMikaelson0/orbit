@@ -2,9 +2,11 @@
 
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 import {
+  Download,
   Eye,
   EyeOff,
   Loader2,
@@ -20,13 +22,15 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { SwipeDismissable } from "@/components/ui/swipe-dismissable";
 import { OrbitModals } from "@/src/components/modals/orbit-modals";
-import { OrbitCommandPalette } from "@/src/components/search/orbit-command-palette";
+import { OrbitWelcomeTutorial } from "@/src/components/onboarding/orbit-welcome-tutorial";
 import { ChannelSidebar } from "@/src/components/sidebar/channel-sidebar";
 import { MembersSidebar } from "@/src/components/sidebar/members-sidebar";
 import { ServerSidebar } from "@/src/components/sidebar/server-sidebar";
 import { OrbitSocialProvider } from "@/src/context/orbit-social-context";
 import { useModal } from "@/src/hooks/use-modal";
+import { useOrbitInstallPrompt } from "@/src/hooks/use-orbit-install-prompt";
 import { useOrbitThemeEngine } from "@/src/hooks/use-orbit-theme-engine";
 import { useOrbitSocial } from "@/src/hooks/use-orbit-social";
 import { useOrbitWorkspace } from "@/src/hooks/use-orbit-workspace";
@@ -37,6 +41,14 @@ interface OrbitDashboardShellProps {
   children: ReactNode;
 }
 
+const OrbitCommandPalette = dynamic(
+  () =>
+    import("@/src/components/search/orbit-command-palette").then(
+      (mod) => mod.OrbitCommandPalette,
+    ),
+  { ssr: false },
+);
+
 export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
   const router = useRouter();
@@ -44,14 +56,17 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
   const [loading, setLoading] = useState(true);
   const { onOpen } = useModal();
   useOrbitThemeEngine();
+  const { canInstall, triggerInstall } = useOrbitInstallPrompt();
   const {
     navSummary,
+    serverCount,
     mobilePanels,
     setMobilePanelOpen,
     privacyMode,
     togglePrivacyMode,
   } = useOrbitNavStore((state) => ({
     navSummary: state.getSummary(),
+    serverCount: state.servers.length,
     mobilePanels: state.mobilePanels,
     setMobilePanelOpen: state.setMobilePanelOpen,
     privacyMode: state.privacyMode,
@@ -141,6 +156,11 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
         <OrbitCommandPalette
           openOrCreateDmWithProfile={social.openOrCreateDmWithProfile}
         />
+        <OrbitWelcomeTutorial
+          onCreateSpace={() => onOpen("createServer")}
+          onJoinSpace={() => onOpen("joinServer")}
+          serverCount={serverCount}
+        />
 
         <div className="relative mx-auto flex h-screen w-full max-w-[1700px] gap-4 p-4">
           <div className="hidden md:block">
@@ -212,6 +232,17 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
                 >
                   <Settings2 className="h-4 w-4" />
                 </Button>
+                {canInstall ? (
+                  <Button
+                    className="rounded-full"
+                    onClick={() => void triggerInstall()}
+                    size="icon"
+                    title="Install Orbit App"
+                    variant="ghost"
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                ) : null}
                 <Button className="hidden rounded-full sm:inline-flex" size="sm" variant="secondary">
                   <Sparkles className="h-4 w-4" />
                   Orbit AI Soon
@@ -243,11 +274,17 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
           open={mobilePanels.servers}
         >
           <DialogContent className="h-[86vh] max-w-[95vw] p-0 md:hidden">
-            <ServerSidebar
-              loading={loadingServers}
-              mobile
-              onNavigate={() => setMobilePanelOpen("servers", false)}
-            />
+            <SwipeDismissable
+              className="h-full"
+              direction="right"
+              onDismiss={() => setMobilePanelOpen("servers", false)}
+            >
+              <ServerSidebar
+                loading={loadingServers}
+                mobile
+                onNavigate={() => setMobilePanelOpen("servers", false)}
+              />
+            </SwipeDismissable>
           </DialogContent>
         </Dialog>
 
@@ -256,10 +293,16 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
           open={mobilePanels.context}
         >
           <DialogContent className="h-[86vh] max-w-[95vw] p-0 lg:hidden">
-            <ChannelSidebar
-              mobile
-              onNavigate={() => setMobilePanelOpen("context", false)}
-            />
+            <SwipeDismissable
+              className="h-full"
+              direction="right"
+              onDismiss={() => setMobilePanelOpen("context", false)}
+            >
+              <ChannelSidebar
+                mobile
+                onNavigate={() => setMobilePanelOpen("context", false)}
+              />
+            </SwipeDismissable>
           </DialogContent>
         </Dialog>
 
@@ -268,7 +311,13 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
           open={mobilePanels.members}
         >
           <DialogContent className="h-[86vh] max-w-[95vw] p-0 xl:hidden">
-            <MembersSidebar mobile user={session.user} />
+            <SwipeDismissable
+              className="h-full"
+              direction="right"
+              onDismiss={() => setMobilePanelOpen("members", false)}
+            >
+              <MembersSidebar mobile user={session.user} />
+            </SwipeDismissable>
           </DialogContent>
         </Dialog>
 

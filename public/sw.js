@@ -1,9 +1,11 @@
-const CACHE_NAME = "orbit-pwa-v1";
+const CACHE_NAME = "orbit-pwa-v2";
 const STATIC_ASSETS = [
   "/",
   "/dashboard",
   "/manifest.webmanifest",
-  "/orbit-icon.svg",
+  "/orbit-icon-192.png",
+  "/orbit-icon-512.png",
+  "/apple-touch-icon.png",
 ];
 
 self.addEventListener("install", (event) => {

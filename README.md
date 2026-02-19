@@ -6,6 +6,7 @@ Orbit is a realtime productivity-social platform built in phases:
 - **Phase 3**: Media uploads + LiveKit voice/video + moderation controls
 - **Phase 4**: Social engine (DMs, friends, command palette, notifications, privacy mode)
 - **Phase 5**: Theme engine, Orbit-Bot commands/moderation, channel tasks, threaded replies, PWA readiness
+- **Phase 6**: Mobile gestures, developer webhook API, onboarding + analytics, security hardening
 
 ## Stack
 
@@ -44,6 +45,16 @@ Orbit is a realtime productivity-social platform built in phases:
 - **PWA support** (installable manifest + service worker registration)
 - **Skeleton loaders** for smoother loading states
 
+### Growth & Ecosystem (Phase 6)
+- **Swipe-to-close** for mobile sidebars + dialogs
+- **Orbit Developer API** for webhook-based bot messaging
+- **Welcome tutorial** onboarding flow for new users
+- **Global analytics dashboard** for server owners (Edge Function + client fallback)
+- **2FA support** with Supabase MFA (TOTP enroll / verify / unenroll)
+- **Rate limiting** for AI + webhook APIs and client send pacing
+- **Image moderation mock** for uploads and webhook attachments
+- **PWA icon pack** for iOS/Android install experience
+
 ## Local development
 
 ```bash
@@ -57,6 +68,7 @@ npm run dev
 Required:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (required for developer API + edge analytics)
 - `NEXT_PUBLIC_LIVEKIT_URL`
 - `LIVEKIT_API_KEY`
 - `LIVEKIT_API_SECRET`
@@ -73,12 +85,16 @@ Run migrations in order from `supabase/migrations/`:
 2. `20260219_orbit_phase3_media_voice.sql`
 3. `20260219_orbit_phase4_social.sql`
 4. `20260219_orbit_phase5_power_user.sql`
+5. `20260219_orbit_phase6_growth.sql`
 
 Phase 5 adds:
 - `orbit_bots` (per-server bot metadata)
 - `channel_tasks` (per-channel task board)
 - `message_flags` (moderation signals)
 - `messages.thread_parent_id` (threaded replies)
+
+Phase 6 adds:
+- `server_webhooks` (bot/webhook integration records)
 
 Also make sure Supabase Auth providers include:
 - Email/Password
@@ -97,9 +113,61 @@ Room names are derived from server/channel IDs.
 Orbit ships with:
 - `app/manifest.ts`
 - `public/sw.js`
+- `public/orbit-icon-192.png`
+- `public/orbit-icon-512.png`
+- `public/apple-touch-icon.png`
 - runtime registration via `OrbitPwaRegister`
 
 Users can install Orbit from supported browsers (desktop + mobile).
+
+## Orbit Developer API (Webhook Bots)
+
+### Create a webhook (staff only)
+`POST /api/developer/webhooks` with bearer auth token
+
+```json
+{
+  "channelId": "CHANNEL_UUID",
+  "name": "CI Bot"
+}
+```
+
+Response includes:
+- `endpoint`: `/api/developer/webhooks/{webhookId}/{webhookSecret}`
+- `webhookSecret`: only returned once
+
+### Send message as webhook
+`POST /api/developer/webhooks/{webhookId}/{webhookSecret}`
+
+```json
+{
+  "content": "Build passed on main branch",
+  "username": "Pipeline Bot"
+}
+```
+
+Optional:
+- `fileUrl` for attachments (subject to moderation checks)
+
+### Revoke webhook
+`DELETE /api/developer/webhooks/{webhookId}` with bearer auth token
+
+## Supabase Edge Function
+
+Analytics function source:
+- `supabase/functions/orbit-analytics/index.ts`
+
+Deploy with Supabase CLI:
+
+```bash
+supabase functions deploy orbit-analytics
+```
+
+## 2FA Setup Notes
+
+- Orbit Settings includes TOTP management built on Supabase MFA.
+- Ensure MFA is enabled in your Supabase Auth settings.
+- Users can enroll, verify, and remove authenticator factors directly in app.
 
 ## Deployment (Vercel)
 
@@ -122,3 +190,16 @@ Use the included deployment helper:
 ```
 
 This runs lint/build before `vercel --prod`.
+
+## Final Go-Live Checklist (Vercel)
+
+- [ ] All migrations applied through Phase 6
+- [ ] Supabase Auth providers configured (Email/Password + Google + MFA)
+- [ ] `SUPABASE_SERVICE_ROLE_KEY` added in Vercel
+- [ ] LiveKit keys configured and `/api/livekit/token` verified
+- [ ] Edge Function `orbit-analytics` deployed
+- [ ] Webhook endpoint tested with a sample bot payload
+- [ ] `npm run lint` and `npm run build` both pass on main branch
+- [ ] PWA install verified on iOS Safari + Android Chrome
+- [ ] Browser notifications permission flow validated
+- [ ] Privacy mode, rate limits, and moderation checks smoke-tested

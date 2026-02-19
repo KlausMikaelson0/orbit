@@ -179,3 +179,17 @@ export interface OrbitChannelTask {
   updated_at: string;
   creator: OrbitProfile | null;
 }
+
+export interface OrbitServerWebhook {
+  id: string;
+  server_id: string;
+  channel_id: string;
+  sender_member_id: string;
+  created_by: string;
+  name: string;
+  is_active: boolean;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
