@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 interface GlobalErrorProps {
   error: Error & { digest?: string };
   reset: () => void;
@@ -25,12 +27,12 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
               >
                 Retry
               </button>
-              <a
+              <Link
                 className="rounded-full border border-white/15 bg-white/[0.04] px-4 py-2 text-sm text-zinc-100 transition hover:bg-white/[0.08]"
                 href="/"
               >
                 Back to home
-              </a>
+              </Link>
             </div>
           </section>
         </main>
