@@ -6,10 +6,9 @@ import { Disc3, Loader2, Mail, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { Database } from "@/types";
 
 interface AuthPanelProps {
-  supabase: SupabaseClient<Database>;
+  supabase: SupabaseClient;
 }
 
 export function AuthPanel({ supabase }: AuthPanelProps) {

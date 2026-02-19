@@ -9,10 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useDiscordStore } from "@/store/use-discord-store";
-import type { Database, Member, MemberRole, MemberWithProfile, Profile } from "@/types";
+import type { Member, MemberRole, MemberWithProfile, Profile } from "@/types";
 
 interface MembersSidebarProps {
-  supabase: SupabaseClient<Database>;
+  supabase: SupabaseClient;
   mobile?: boolean;
 }
 

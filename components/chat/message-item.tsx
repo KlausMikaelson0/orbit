@@ -36,12 +36,11 @@ export function MessageItem({ message, isOwnMessage }: MessageItemProps) {
         </div>
 
         {message.content ? (
-          <ReactMarkdown
-            className="space-y-2 text-sm leading-relaxed text-[#dbdee1] [&_a]:text-indigo-300 [&_code]:rounded [&_code]:bg-[#1e1f22] [&_code]:px-1 [&_code]:py-0.5 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-[#1e1f22] [&_pre]:p-2 [&_ul]:list-inside [&_ul]:list-disc"
-            remarkPlugins={[remarkGfm]}
-          >
-            {message.content}
-          </ReactMarkdown>
+          <div className="space-y-2 text-sm leading-relaxed text-[#dbdee1] [&_a]:text-indigo-300 [&_code]:rounded [&_code]:bg-[#1e1f22] [&_code]:px-1 [&_code]:py-0.5 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-[#1e1f22] [&_pre]:p-2 [&_ul]:list-inside [&_ul]:list-disc">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {message.content}
+            </ReactMarkdown>
+          </div>
         ) : null}
 
         {message.file_url ? (

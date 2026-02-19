@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { motion } from "framer-motion";
-import { Plus, Server as ServerIcon } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -16,10 +16,10 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useDiscordStore } from "@/store/use-discord-store";
-import type { Database, Server } from "@/types";
+import type { Server } from "@/types";
 
 interface ServerSidebarProps {
-  supabase: SupabaseClient<Database>;
+  supabase: SupabaseClient;
   userId: string;
   mobile?: boolean;
   onServerPicked?: () => void;

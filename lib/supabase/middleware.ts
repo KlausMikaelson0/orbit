@@ -1,8 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import type { Database } from "@/types";
-
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://example.supabase.co";
 const supabaseAnonKey =
@@ -13,7 +11,7 @@ export async function updateSession(request: NextRequest) {
     request,
   });
 
-  const supabase = createServerClient<Database>(supabaseUrl, supabaseAnonKey, {
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
         return request.cookies.getAll();

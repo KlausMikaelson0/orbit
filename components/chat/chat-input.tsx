@@ -7,10 +7,9 @@ import { Loader2, Paperclip, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { isImageAttachment } from "@/lib/utils";
-import type { Database } from "@/types";
 
 interface ChatInputProps {
-  supabase: SupabaseClient<Database>;
+  supabase: SupabaseClient;
   channelId: string;
   userId: string;
 }

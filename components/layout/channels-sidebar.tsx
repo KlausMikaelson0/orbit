@@ -8,10 +8,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { useDiscordStore } from "@/store/use-discord-store";
-import type { Channel, ChannelType, Database } from "@/types";
+import type { Channel, ChannelType } from "@/types";
 
 interface ChannelsSidebarProps {
-  supabase: SupabaseClient<Database>;
+  supabase: SupabaseClient;
   mobile?: boolean;
   onChannelPicked?: () => void;
 }

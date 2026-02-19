@@ -10,10 +10,10 @@ import { MessageItem } from "@/components/chat/message-item";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useDiscordStore } from "@/store/use-discord-store";
-import type { Database, Message, MessageWithAuthor } from "@/types";
+import type { Message, MessageWithAuthor } from "@/types";
 
 interface ChatPanelProps {
-  supabase: SupabaseClient<Database>;
+  supabase: SupabaseClient;
   user: User;
   onOpenServers: () => void;
   onOpenChannels: () => void;

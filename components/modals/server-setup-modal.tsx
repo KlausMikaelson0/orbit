@@ -16,10 +16,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { generateInviteCode } from "@/lib/utils";
 import { useDiscordStore } from "@/store/use-discord-store";
-import type { ChannelType, Database, MemberRole, Server } from "@/types";
+import type { ChannelType, MemberRole, Server } from "@/types";
 
 interface ServerSetupModalProps {
-  supabase: SupabaseClient<Database>;
+  supabase: SupabaseClient;
   user: User;
 }
 

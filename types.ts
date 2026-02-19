@@ -83,6 +83,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       servers: {
         Row: Server;
@@ -104,6 +105,14 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "servers_owner_id_fkey";
+            columns: ["owner_id"];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       channels: {
         Row: Channel;
@@ -123,6 +132,14 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "channels_server_id_fkey";
+            columns: ["server_id"];
+            referencedRelation: "servers";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       members: {
         Row: Member;
@@ -142,6 +159,20 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "members_server_id_fkey";
+            columns: ["server_id"];
+            referencedRelation: "servers";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "members_user_id_fkey";
+            columns: ["user_id"];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       messages: {
         Row: Message;
@@ -163,12 +194,29 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "messages_channel_id_fkey";
+            columns: ["channel_id"];
+            referencedRelation: "channels";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "messages_user_id_fkey";
+            columns: ["user_id"];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
       };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
     Enums: {
       channel_type: ChannelType;
       member_role: MemberRole;
       profile_status: ProfileStatus;
     };
+    CompositeTypes: Record<string, never>;
   };
 }

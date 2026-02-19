@@ -10,10 +10,10 @@ import { ServerSidebar } from "@/components/layout/server-sidebar";
 import { ServerSetupModal } from "@/components/modals/server-setup-modal";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useDiscordStore } from "@/store/use-discord-store";
-import type { Database, ProfileStatus } from "@/types";
+import type { ProfileStatus } from "@/types";
 
 interface DiscordLayoutProps {
-  supabase: SupabaseClient<Database>;
+  supabase: SupabaseClient;
   user: User;
 }
 
