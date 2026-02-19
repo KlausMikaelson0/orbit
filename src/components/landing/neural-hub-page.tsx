@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, type Variants } from "framer-motion";
 import {
   ArrowRight,
   BrainCircuit,
@@ -34,12 +34,12 @@ const corePillars = [
   },
 ];
 
-const reveal = {
+const reveal: Variants = {
   hidden: { opacity: 0, y: 16 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.55, ease: "easeOut" },
+    transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] },
   },
 };
 
