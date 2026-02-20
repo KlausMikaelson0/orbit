@@ -194,6 +194,15 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
   }, [supabase]);
 
   useEffect(() => {
+    if (loading) {
+      return;
+    }
+    if (!isSupabaseReady) {
+      router.replace("/");
+    }
+  }, [loading, router]);
+
+  useEffect(() => {
     if (!session) {
       return;
     }
@@ -225,6 +234,14 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
           <p className="text-sm text-zinc-300">
             {t("dashboard.supabaseSetupHelp")}
           </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button asChild className="rounded-full" size="sm" variant="secondary">
+              <Link href="/">{t("landing.openInBrowser")}</Link>
+            </Button>
+            <Button asChild className="rounded-full" size="sm" variant="ghost">
+              <Link href="/auth">{t("dashboard.goToAuth")}</Link>
+            </Button>
+          </div>
         </div>
       </div>
     );

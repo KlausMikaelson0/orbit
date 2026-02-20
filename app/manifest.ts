@@ -9,7 +9,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Orbit",
     description:
       "Orbit is a productivity-social collaboration platform with realtime messaging, channels, voice, and AI workflows.",
-    start_url: "/dashboard",
+    start_url: "/",
     scope: "/",
     display: "standalone",
     background_color: "#06070b",
@@ -31,8 +31,8 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
     shortcuts: [
       {
-        name: "Open Dashboard",
-        url: "/dashboard",
+        name: "Open Home",
+        url: "/",
       },
       {
         name: "Open Auth",
