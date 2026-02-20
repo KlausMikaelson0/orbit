@@ -20,6 +20,8 @@ import { ServerAnalyticsDashboard } from "@/src/components/analytics/server-anal
 import { ChatInput } from "@/src/components/chat/chat-input";
 import { ChatMessages } from "@/src/components/chat/chat-messages";
 import { ChannelTasksPanel } from "@/src/components/chat/channel-tasks-panel";
+import { OrbitQuestsView } from "@/src/components/economy/orbit-quests-view";
+import { OrbitShopView } from "@/src/components/economy/orbit-shop-view";
 import { useOrbitSocialContext } from "@/src/context/orbit-social-context";
 import { requestOrbitSummary } from "@/src/lib/orbit-bot";
 import { DmHomeView } from "@/src/components/social/dm-home-view";
@@ -169,6 +171,10 @@ export function OrbitChatWorkspace() {
                 ? "Home"
                 : activeView === "FRIENDS"
                   ? "Friends"
+                  : activeView === "SHOP"
+                    ? "Shop"
+                    : activeView === "QUESTS"
+                      ? "Quests"
                   : activeServer?.name ?? "Unified Space"}
           </p>
           <p className="truncate text-sm font-semibold text-violet-100">
@@ -180,6 +186,10 @@ export function OrbitChatWorkspace() {
                 ? "Direct Messages"
                 : activeView === "FRIENDS"
                   ? "Relationship Hub"
+                  : activeView === "SHOP"
+                    ? "Orbit Shop"
+                    : activeView === "QUESTS"
+                      ? "Orbit Missions"
                   : activeChannel
                     ? `#${activeChannel.name}`
                     : "No active channel"}
@@ -190,6 +200,10 @@ export function OrbitChatWorkspace() {
             ? activeChannel?.type ?? "TEXT"
             : activeView === "DM_THREAD"
               ? "DM"
+              : activeView === "SHOP"
+                ? "COMMERCE"
+                : activeView === "QUESTS"
+                  ? "MISSIONS"
               : "SOCIAL"}
         </div>
       </div>
@@ -360,6 +374,10 @@ export function OrbitChatWorkspace() {
           openOrCreateDmWithProfile={openOrCreateDmWithProfile}
           sendFriendRequest={sendFriendRequest}
         />
+      ) : activeView === "QUESTS" ? (
+        <OrbitQuestsView />
+      ) : activeView === "SHOP" ? (
+        <OrbitShopView />
       ) : activeView === "DM_HOME" ? (
         <DmHomeView onOpenFriends={setActiveFriends} />
       ) : activeView === "DM_THREAD" ? (

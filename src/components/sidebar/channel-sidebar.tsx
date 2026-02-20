@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Hash, Mic, Plus, Video } from "lucide-react";
+import { FileText, Hash, Mic, Plus, ScrollText, ShoppingBag, Users, Video } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,8 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
     activeDmThreadId,
     setActiveChannel,
     setActiveFriends,
+    setActiveQuests,
+    setActiveShop,
     setActiveDmThread,
   } = useOrbitNavStore(
     useShallow((state) => ({
@@ -52,6 +54,8 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
       activeDmThreadId: state.activeDmThreadId,
       setActiveChannel: state.setActiveChannel,
       setActiveFriends: state.setActiveFriends,
+      setActiveQuests: state.setActiveQuests,
+      setActiveShop: state.setActiveShop,
       setActiveDmThread: state.setActiveDmThread,
     })),
   );
@@ -60,7 +64,11 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
   const channels = activeServerId ? channelsByServer[activeServerId] ?? [] : [];
   const isServerView = activeView === "SERVER";
   const isHomeView =
-    activeView === "DM_HOME" || activeView === "DM_THREAD" || activeView === "FRIENDS";
+    activeView === "DM_HOME" ||
+    activeView === "DM_THREAD" ||
+    activeView === "FRIENDS" ||
+    activeView === "SHOP" ||
+    activeView === "QUESTS";
 
   return (
     <aside
@@ -100,17 +108,44 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
             <span className="sr-only">Create channel</span>
           </Button>
         ) : (
-          <Button
-            className="rounded-full px-3"
-            onClick={() => {
-              setActiveFriends();
-              onNavigate?.();
-            }}
-            size="sm"
-            variant={activeView === "FRIENDS" ? "default" : "secondary"}
-          >
-            Friends
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              className="rounded-full px-2.5"
+              onClick={() => {
+                setActiveFriends();
+                onNavigate?.();
+              }}
+              size="sm"
+              variant={activeView === "FRIENDS" ? "default" : "secondary"}
+            >
+              <Users className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Friends</span>
+            </Button>
+            <Button
+              className="rounded-full px-2.5"
+              onClick={() => {
+                setActiveShop();
+                onNavigate?.();
+              }}
+              size="sm"
+              variant={activeView === "SHOP" ? "default" : "secondary"}
+            >
+              <ShoppingBag className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Shop</span>
+            </Button>
+            <Button
+              className="rounded-full px-2.5"
+              onClick={() => {
+                setActiveQuests();
+                onNavigate?.();
+              }}
+              size="sm"
+              variant={activeView === "QUESTS" ? "default" : "secondary"}
+            >
+              <ScrollText className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Quests</span>
+            </Button>
+          </div>
         )}
       </div>
 

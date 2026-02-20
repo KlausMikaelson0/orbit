@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Command } from "cmdk";
-import { Hash, Home, Search, UserRound, Users } from "lucide-react";
+import { Hash, Home, Search, ShoppingBag, ScrollText, UserRound, Users } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
@@ -30,6 +30,8 @@ export function OrbitCommandPalette({
     setActiveChannel,
     setActiveHome,
     setActiveFriends,
+    setActiveShop,
+    setActiveQuests,
     setActiveDmThread,
   } = useOrbitNavStore(
     useShallow((state) => ({
@@ -42,6 +44,8 @@ export function OrbitCommandPalette({
       setActiveChannel: state.setActiveChannel,
       setActiveHome: state.setActiveHome,
       setActiveFriends: state.setActiveFriends,
+      setActiveShop: state.setActiveShop,
+      setActiveQuests: state.setActiveQuests,
       setActiveDmThread: state.setActiveDmThread,
     })),
   );
@@ -152,6 +156,26 @@ export function OrbitCommandPalette({
             >
               <Users className="h-4 w-4 text-violet-300" />
               Open Friends
+            </Command.Item>
+            <Command.Item
+              className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm text-zinc-200 aria-selected:bg-violet-500/20"
+              onSelect={() => {
+                setActiveShop();
+                setOpen(false);
+              }}
+            >
+              <ShoppingBag className="h-4 w-4 text-violet-300" />
+              Open Shop
+            </Command.Item>
+            <Command.Item
+              className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm text-zinc-200 aria-selected:bg-violet-500/20"
+              onSelect={() => {
+                setActiveQuests();
+                setOpen(false);
+              }}
+            >
+              <ScrollText className="h-4 w-4 text-violet-300" />
+              Open Quests
             </Command.Item>
           </Command.Group>
 

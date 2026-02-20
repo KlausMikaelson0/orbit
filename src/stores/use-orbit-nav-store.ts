@@ -76,6 +76,8 @@ interface OrbitNavState {
   ) => void;
   setActiveHome: () => void;
   setActiveFriends: () => void;
+  setActiveShop: () => void;
+  setActiveQuests: () => void;
   setActiveDmThread: (threadId: string | null) => void;
   setActiveServer: (serverId: string | null) => void;
   setActiveChannel: (channelId: string | null) => void;
@@ -315,6 +317,20 @@ export const useOrbitNavStore = create<OrbitNavState>((set, get) => ({
       activeChannelId: null,
       activeDmThreadId: null,
     }),
+  setActiveShop: () =>
+    set({
+      activeView: "SHOP",
+      activeServerId: null,
+      activeChannelId: null,
+      activeDmThreadId: null,
+    }),
+  setActiveQuests: () =>
+    set({
+      activeView: "QUESTS",
+      activeServerId: null,
+      activeChannelId: null,
+      activeDmThreadId: null,
+    }),
   setActiveDmThread: (threadId) =>
     set({
       activeView: threadId ? "DM_THREAD" : "DM_HOME",
@@ -372,6 +388,20 @@ export const useOrbitNavStore = create<OrbitNavState>((set, get) => ({
       return {
         activeServerName: "Home",
         activeChannelName: "Direct Messages",
+      };
+    }
+
+    if (activeView === "SHOP") {
+      return {
+        activeServerName: "Home",
+        activeChannelName: "Orbit Shop",
+      };
+    }
+
+    if (activeView === "QUESTS") {
+      return {
+        activeServerName: "Home",
+        activeChannelName: "Orbit Quests",
       };
     }
 

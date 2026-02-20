@@ -40,7 +40,11 @@ export function ServerSidebar({
     );
   const { onOpen } = useModal();
   const homeActive =
-    activeView === "DM_HOME" || activeView === "FRIENDS" || activeView === "DM_THREAD";
+    activeView === "DM_HOME" ||
+    activeView === "FRIENDS" ||
+    activeView === "DM_THREAD" ||
+    activeView === "SHOP" ||
+    activeView === "QUESTS";
 
   return (
     <aside

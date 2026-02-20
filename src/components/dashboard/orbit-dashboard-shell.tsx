@@ -109,6 +109,20 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
       };
     }
 
+    if (activeView === "SHOP") {
+      return {
+        activeServerName: "Home",
+        activeChannelName: "Orbit Shop",
+      };
+    }
+
+    if (activeView === "QUESTS") {
+      return {
+        activeServerName: "Home",
+        activeChannelName: "Orbit Quests",
+      };
+    }
+
     if (activeView === "DM_THREAD") {
       const activeThread = dmConversations.find(
         (thread) => thread.thread.id === activeDmThreadId,
@@ -280,7 +294,9 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
                     {navSummary.activeServerName}
                   </p>
                   <p className="truncate text-lg font-semibold text-violet-100">
-                    #{navSummary.activeChannelName}
+                    {activeView === "SERVER"
+                      ? `#${navSummary.activeChannelName}`
+                      : navSummary.activeChannelName}
                   </p>
                 </div>
               </div>

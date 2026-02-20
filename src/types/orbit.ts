@@ -1,6 +1,12 @@
 export type ChannelType = "TEXT" | "AUDIO" | "VIDEO";
 export type MemberRole = "ADMIN" | "MODERATOR" | "GUEST";
-export type OrbitViewMode = "SERVER" | "DM_HOME" | "DM_THREAD" | "FRIENDS";
+export type OrbitViewMode =
+  | "SERVER"
+  | "DM_HOME"
+  | "DM_THREAD"
+  | "FRIENDS"
+  | "SHOP"
+  | "QUESTS";
 export type RelationshipStatus = "PENDING" | "ACCEPTED" | "BLOCKED";
 export type OrbitThemePreset = "MIDNIGHT" | "ONYX" | "CYBERPUNK" | "CUSTOM";
 export type OrbitTaskStatus = "TODO" | "IN_PROGRESS" | "DONE";
