@@ -27,15 +27,15 @@ type DownloadTarget = {
 const DOWNLOAD_TARGETS: Record<"windows" | "mac" | "linux", DownloadTarget> = {
   windows: {
     label: "Windows",
-    href: "https://github.com/KlausMikaelson0/Orbit/releases/latest/download/Orbit-Setup.exe",
+    href: "https://github.com/KlausMikaelson0/orbit/releases/download/v1.0.2/orbit-desktop-windows-latest.zip",
   },
   mac: {
     label: "macOS",
-    href: "https://github.com/KlausMikaelson0/Orbit/releases/latest/download/Orbit.dmg",
+    href: "https://github.com/KlausMikaelson0/orbit/releases/download/v1.0.2/orbit-desktop-macos-latest.zip",
   },
   linux: {
     label: "Linux",
-    href: "https://github.com/KlausMikaelson0/Orbit/releases/latest/download/Orbit.AppImage",
+    href: "https://github.com/KlausMikaelson0/orbit/releases/download/v1.0.2/orbit-desktop-ubuntu-latest.zip",
   },
 };
 
@@ -90,6 +90,7 @@ const orbitSteps = [
 
 export function OrbitLandingPage() {
   const { t } = useOrbitLocale();
+  const browserOpenHref = "/auth";
   const [downloadTarget, setDownloadTarget] = useState<DownloadTarget>(
     DOWNLOAD_TARGETS.windows,
   );
@@ -180,7 +181,7 @@ export function OrbitLandingPage() {
               <Link href="/auth">{t("landing.login")}</Link>
             </Button>
             <Button asChild className="rounded-full px-4" size="sm">
-              <Link href="/dashboard">{t("landing.openBrowser")}</Link>
+              <Link href={browserOpenHref}>{t("landing.openBrowser")}</Link>
             </Button>
           </div>
         </header>
@@ -212,7 +213,7 @@ export function OrbitLandingPage() {
                 className="h-12 rounded-full border border-white/15 bg-white/[0.04] px-6 text-sm text-zinc-100 hover:bg-white/[0.08]"
                 variant="ghost"
               >
-                <Link href="/dashboard">{t("landing.openInBrowser")}</Link>
+                <Link href={browserOpenHref}>{t("landing.openInBrowser")}</Link>
               </Button>
             </div>
           </div>
