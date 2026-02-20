@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 
 import {
@@ -14,6 +14,8 @@ import type {
   OrbitDmMessage,
   OrbitDmParticipant,
   OrbitDmThread,
+  OrbitIncomingCall,
+  OrbitActiveCallSession,
   OrbitProfile,
   OrbitRelationship,
 } from "@/src/types/orbit";
@@ -29,12 +31,25 @@ interface ParticipantWithProfile extends OrbitDmParticipant {
 
 export interface UseOrbitSocialResult {
   loadingSocial: boolean;
+  incomingCall: OrbitIncomingCall | null;
+  activeCallSession: OrbitActiveCallSession | null;
+  outgoingCallPending: boolean;
+  callNotice: string | null;
   sendFriendRequest: (identifier: string) => Promise<OrbitSocialResult>;
   acceptFriendRequest: (relationshipId: string) => Promise<OrbitSocialResult>;
   declineFriendRequest: (relationshipId: string) => Promise<OrbitSocialResult>;
   openOrCreateDmWithProfile: (
     profile: OrbitProfile,
   ) => Promise<OrbitSocialResult<OrbitDmConversation>>;
+  startDmCall: (
+    targetProfile: OrbitProfile,
+    options: { threadId: string | null; mode: "AUDIO" | "VIDEO" },
+  ) => Promise<OrbitSocialResult>;
+  acceptIncomingCall: () => Promise<OrbitSocialResult>;
+  declineIncomingCall: () => Promise<OrbitSocialResult>;
+  endActiveCall: () => Promise<OrbitSocialResult>;
+  cancelOutgoingCall: () => Promise<OrbitSocialResult>;
+  clearCallNotice: () => void;
   fetchRelationships: () => Promise<void>;
   fetchDmConversations: () => Promise<void>;
 }
@@ -51,15 +66,49 @@ function normalizeProfileRow(
   return row;
 }
 
+interface OrbitCallStartedPayload {
+  callId: string;
+  callerId: string;
+  callerName: string;
+  callerAvatarUrl: string | null;
+  recipientId: string;
+  mode: "AUDIO" | "VIDEO";
+  roomId: string;
+  threadId: string | null;
+  startedAt: string;
+}
+
+interface OrbitCallDecisionPayload {
+  callId: string;
+  callerId: string;
+  callerName: string;
+  callerAvatarUrl: string | null;
+  recipientId: string;
+  recipientName: string;
+  recipientAvatarUrl: string | null;
+  mode: "AUDIO" | "VIDEO";
+  roomId: string;
+  threadId: string | null;
+}
+
 export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
   const profile = useOrbitNavStore((state) => state.profile);
+  const incomingCall = useOrbitNavStore((state) => state.incomingCall);
+  const activeCallSession = useOrbitNavStore((state) => state.activeCallSession);
   const setRelationships = useOrbitNavStore((state) => state.setRelationships);
   const setDmConversations = useOrbitNavStore((state) => state.setDmConversations);
   const setOnlineProfileIds = useOrbitNavStore((state) => state.setOnlineProfileIds);
   const setActiveDmThread = useOrbitNavStore((state) => state.setActiveDmThread);
+  const setIncomingCall = useOrbitNavStore((state) => state.setIncomingCall);
+  const clearIncomingCall = useOrbitNavStore((state) => state.clearIncomingCall);
+  const setActiveCallSession = useOrbitNavStore((state) => state.setActiveCallSession);
+  const clearActiveCallSession = useOrbitNavStore((state) => state.clearActiveCallSession);
 
   const [loadingSocial, setLoadingSocial] = useState(true);
+  const [callNotice, setCallNotice] = useState<string | null>(null);
+  const [outgoingCall, setOutgoingCall] = useState<OrbitCallStartedPayload | null>(null);
+  const callSignalChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const fetchRelationships = useCallback(async () => {
     if (!user) {
@@ -246,10 +295,7 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
               return;
             }
 
-            const isCurrentThread =
-              currentState.activeView === "DM_THREAD" &&
-              currentState.activeDmThreadId === inserted.thread_id;
-            if (!isCurrentThread || document.hidden) {
+            if (document.visibilityState !== "visible") {
               const source = currentState.dmConversations.find(
                 (conversation) => conversation.thread.id === inserted.thread_id,
               );
@@ -273,6 +319,139 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
       void supabase.removeChannel(socialChannel);
     };
   }, [fetchDmConversations, fetchRelationships, supabase, user]);
+
+  const sendCallSignal = useCallback(
+    async (event: string, payload: Record<string, unknown>): Promise<OrbitSocialResult> => {
+      const channel = callSignalChannelRef.current;
+      if (!channel) {
+        return { error: "Call signaling channel is not ready." };
+      }
+      const status = await channel.send({
+        type: "broadcast",
+        event,
+        payload,
+      });
+      if (status !== "ok") {
+        return { error: "Unable to send call signal." };
+      }
+      return {};
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!user) {
+      clearIncomingCall();
+      clearActiveCallSession();
+      callSignalChannelRef.current = null;
+      return;
+    }
+
+    const callChannel = supabase.channel("orbit-call-signaling", {
+      config: {
+        broadcast: { self: true },
+      },
+    });
+
+    callChannel
+      .on("broadcast", { event: "call-started" }, ({ payload }) => {
+        const data = payload as OrbitCallStartedPayload;
+        if (!data || data.recipientId !== user.id || data.callerId === user.id) {
+          return;
+        }
+
+        const state = useOrbitNavStore.getState();
+        const knownConversation = state.dmConversations.find(
+          (conversation) =>
+            conversation.otherProfile.id === data.callerId &&
+            (!data.threadId || conversation.thread.id === data.threadId),
+        );
+        if (!knownConversation) {
+          return;
+        }
+
+        setIncomingCall({
+          call_id: data.callId,
+          caller_profile_id: data.callerId,
+          caller_name:
+            data.callerName ||
+            knownConversation.otherProfile.full_name ||
+            knownConversation.otherProfile.username ||
+            "Orbit User",
+          caller_avatar_url:
+            data.callerAvatarUrl || knownConversation.otherProfile.avatar_url || null,
+          recipient_profile_id: data.recipientId,
+          mode: data.mode,
+          room_id: data.roomId,
+          thread_id: data.threadId ?? knownConversation.thread.id,
+          started_at: data.startedAt ?? new Date().toISOString(),
+        });
+      })
+      .on("broadcast", { event: "call-cancelled" }, ({ payload }) => {
+        const data = payload as { callId?: string; recipientId?: string };
+        if (!data?.callId || data.recipientId !== user.id) {
+          return;
+        }
+        const currentIncoming = useOrbitNavStore.getState().incomingCall;
+        if (currentIncoming?.call_id === data.callId) {
+          clearIncomingCall();
+        }
+      })
+      .on("broadcast", { event: "call-accepted" }, ({ payload }) => {
+        const data = payload as OrbitCallDecisionPayload;
+        if (!data || data.callerId !== user.id) {
+          return;
+        }
+        setOutgoingCall(null);
+        setCallNotice(null);
+        setActiveCallSession({
+          call_id: data.callId,
+          peer_profile_id: data.recipientId,
+          peer_name: data.recipientName || "Orbit User",
+          peer_avatar_url: data.recipientAvatarUrl ?? null,
+          mode: data.mode,
+          room_id: data.roomId,
+          thread_id: data.threadId,
+          joined_at: new Date().toISOString(),
+        });
+      })
+      .on("broadcast", { event: "call-declined" }, ({ payload }) => {
+        const data = payload as OrbitCallDecisionPayload;
+        if (!data || data.callerId !== user.id) {
+          return;
+        }
+        setOutgoingCall(null);
+        setCallNotice(`${data.recipientName || "Recipient"} declined your call.`);
+      })
+      .on("broadcast", { event: "call-ended" }, ({ payload }) => {
+        const data = payload as { callId?: string; callerId?: string; recipientId?: string };
+        if (!data?.callId) {
+          return;
+        }
+
+        const active = useOrbitNavStore.getState().activeCallSession;
+        if (active?.call_id === data.callId) {
+          clearActiveCallSession();
+          setCallNotice("Call ended.");
+        }
+        setOutgoingCall((current) => (current?.callId === data.callId ? null : current));
+      })
+      .subscribe();
+
+    callSignalChannelRef.current = callChannel;
+
+    return () => {
+      callSignalChannelRef.current = null;
+      void supabase.removeChannel(callChannel);
+    };
+  }, [
+    clearActiveCallSession,
+    clearIncomingCall,
+    setActiveCallSession,
+    setIncomingCall,
+    supabase,
+    user,
+  ]);
 
   useEffect(() => {
     if (!user) {
@@ -476,12 +655,157 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
     [fetchDmConversations, profile, setActiveDmThread, supabase, user],
   );
 
+  const startDmCall = useCallback(
+    async (
+      targetProfile: OrbitProfile,
+      options: { threadId: string | null; mode: "AUDIO" | "VIDEO" },
+    ): Promise<OrbitSocialResult> => {
+      if (!user || !profile) {
+        return { error: "You must be signed in." };
+      }
+      if (!options.threadId) {
+        return { error: "Open a DM thread before starting a call." };
+      }
+
+      const callId = crypto.randomUUID();
+      const roomId = `dm-${options.threadId}-${callId.slice(0, 8)}`;
+      const startedPayload: OrbitCallStartedPayload = {
+        callId,
+        callerId: user.id,
+        callerName: profile.full_name ?? profile.username ?? "Orbit User",
+        callerAvatarUrl: profile.avatar_url ?? null,
+        recipientId: targetProfile.id,
+        mode: options.mode,
+        roomId,
+        threadId: options.threadId,
+        startedAt: new Date().toISOString(),
+      };
+      setCallNotice(`Calling ${targetProfile.full_name ?? targetProfile.username ?? "Orbit User"}...`);
+      setOutgoingCall(startedPayload);
+
+      const result = await sendCallSignal("call-started", startedPayload);
+      if (result.error) {
+        setOutgoingCall(null);
+      }
+      return result;
+    },
+    [profile, sendCallSignal, user],
+  );
+
+  const acceptIncomingCall = useCallback(async (): Promise<OrbitSocialResult> => {
+    if (!user || !profile || !incomingCall) {
+      return { error: "No incoming call." };
+    }
+
+    clearIncomingCall();
+    setCallNotice(null);
+    setActiveCallSession({
+      call_id: incomingCall.call_id,
+      peer_profile_id: incomingCall.caller_profile_id,
+      peer_name: incomingCall.caller_name,
+      peer_avatar_url: incomingCall.caller_avatar_url,
+      mode: incomingCall.mode,
+      room_id: incomingCall.room_id,
+      thread_id: incomingCall.thread_id,
+      joined_at: new Date().toISOString(),
+    });
+
+    return sendCallSignal("call-accepted", {
+      callId: incomingCall.call_id,
+      callerId: incomingCall.caller_profile_id,
+      callerName: incomingCall.caller_name,
+      callerAvatarUrl: incomingCall.caller_avatar_url,
+      recipientId: user.id,
+      recipientName: profile.full_name ?? profile.username ?? "Orbit User",
+      recipientAvatarUrl: profile.avatar_url ?? null,
+      mode: incomingCall.mode,
+      roomId: incomingCall.room_id,
+      threadId: incomingCall.thread_id,
+    });
+  }, [
+    clearIncomingCall,
+    incomingCall,
+    profile,
+    sendCallSignal,
+    setActiveCallSession,
+    user,
+  ]);
+
+  const declineIncomingCall = useCallback(async (): Promise<OrbitSocialResult> => {
+    if (!user || !profile || !incomingCall) {
+      return { error: "No incoming call." };
+    }
+
+    const current = incomingCall;
+    clearIncomingCall();
+
+    return sendCallSignal("call-declined", {
+      callId: current.call_id,
+      callerId: current.caller_profile_id,
+      callerName: current.caller_name,
+      callerAvatarUrl: current.caller_avatar_url,
+      recipientId: user.id,
+      recipientName: profile.full_name ?? profile.username ?? "Orbit User",
+      recipientAvatarUrl: profile.avatar_url ?? null,
+      mode: current.mode,
+      roomId: current.room_id,
+      threadId: current.thread_id,
+    });
+  }, [clearIncomingCall, incomingCall, profile, sendCallSignal, user]);
+
+  const endActiveCall = useCallback(async (): Promise<OrbitSocialResult> => {
+    if (!activeCallSession || !user) {
+      return { error: "No active call to end." };
+    }
+
+    const endedCallId = activeCallSession.call_id;
+    clearActiveCallSession();
+    setCallNotice(null);
+    setOutgoingCall(null);
+
+    return sendCallSignal("call-ended", {
+      callId: endedCallId,
+      callerId: user.id,
+      recipientId: activeCallSession.peer_profile_id,
+    });
+  }, [activeCallSession, clearActiveCallSession, sendCallSignal, user]);
+
+  const cancelOutgoingCall = useCallback(async (): Promise<OrbitSocialResult> => {
+    if (!outgoingCall) {
+      return { error: "No outgoing call to cancel." };
+    }
+
+    const callId = outgoingCall.callId;
+    setOutgoingCall(null);
+    setCallNotice(null);
+
+    return sendCallSignal("call-cancelled", {
+      callId,
+      callerId: outgoingCall.callerId,
+      recipientId: outgoingCall.recipientId,
+    });
+  }, [outgoingCall, sendCallSignal]);
+
+  const clearCallNotice = useCallback(() => {
+    setCallNotice(null);
+  }, []);
+
   return {
     loadingSocial,
+    incomingCall,
+    activeCallSession,
+    outgoingCallPending: Boolean(outgoingCall),
+    callNotice,
     sendFriendRequest,
     acceptFriendRequest,
     declineFriendRequest,
     openOrCreateDmWithProfile,
+    startDmCall,
+    acceptIncomingCall,
+    declineIncomingCall,
+    endActiveCall,
+    cancelOutgoingCall,
+    clearCallNotice,
     fetchRelationships,
     fetchDmConversations,
   };

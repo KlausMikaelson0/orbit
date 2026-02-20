@@ -112,6 +112,10 @@ const enMessages = {
   "landing.aboutTitle": "A free, open, and modern communication core.",
   "landing.aboutDesc":
     "We built Orbit to be a powerful alternative to cluttered legacy apps: lightning-fast messaging, thoughtful design, desktop-grade reliability, and AI-assisted collaboration in one seamless platform. Orbit is crafted for builders, communities, and teams who want clarity, control, and momentum.",
+  "landing.footerPolicyTitle": "Platform Policy",
+  "landing.termsLink": "Terms",
+  "landing.privacyLink": "Privacy",
+  "landing.footerCopy": "Orbit is built for secure, high-trust communication.",
 } as const;
 
 type OrbitTranslationKey = keyof typeof enMessages;
@@ -212,6 +216,10 @@ const arMessages: Record<OrbitTranslationKey, string> = {
   "landing.aboutTitle": "نواة تواصل حديثة، مجانية ومفتوحة.",
   "landing.aboutDesc":
     "بنينا Orbit كبديل أقوى للتطبيقات القديمة المزدحمة: رسائل فائقة السرعة، تصميم مدروس، موثوقية سطح مكتب، وتعاون مدعوم بالذكاء الاصطناعي في منصة واحدة.",
+  "landing.footerPolicyTitle": "سياسات المنصة",
+  "landing.termsLink": "الشروط",
+  "landing.privacyLink": "الخصوصية",
+  "landing.footerCopy": "Orbit مبني لتواصل آمن وعالي الثقة.",
 };
 
 const trMessages: Record<OrbitTranslationKey, string> = {
@@ -314,6 +322,10 @@ const trMessages: Record<OrbitTranslationKey, string> = {
   "landing.aboutTitle": "Ücretsiz, açık ve modern bir iletişim çekirdeği.",
   "landing.aboutDesc":
     "Orbit'i eski ve dağınık uygulamalara güçlü bir alternatif olarak geliştirdik: yüksek hızlı mesajlaşma, iyi tasarım, masaüstü güvenilirliği ve yapay zekâ destekli işbirliği tek platformda.",
+  "landing.footerPolicyTitle": "Platform Politikası",
+  "landing.termsLink": "Kullanım Koşulları",
+  "landing.privacyLink": "Gizlilik",
+  "landing.footerCopy": "Orbit güvenli ve yüksek güven odaklı iletişim için üretildi.",
 };
 
 const messages: Record<OrbitLocale, Record<OrbitTranslationKey, string>> = {

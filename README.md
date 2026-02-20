@@ -96,6 +96,7 @@ Required:
 - `NEXT_PUBLIC_LIVEKIT_URL`
 - `LIVEKIT_API_KEY`
 - `LIVEKIT_API_SECRET`
+- `GIPHY_API_KEY` (for GIF picker search)
 
 Optional but recommended for stable OAuth redirects:
 - `NEXT_PUBLIC_AUTH_REDIRECT_URL` (explicit OAuth base URL, e.g. `https://your-app.vercel.app`)
@@ -103,6 +104,9 @@ Optional but recommended for stable OAuth redirects:
 Optional AI provider keys (Orbit-Bot summarize endpoint):
 - `ANTHROPIC_API_KEY`
 - `OPENAI_API_KEY`
+
+Incoming call ringtone source:
+- replace `ORBIT_RINGTONE_URL` in `src/lib/orbit-notifications.ts` with your own Heavenly ringtone URL (for example `Heavenly.mp3`).
 
 ## Supabase setup
 

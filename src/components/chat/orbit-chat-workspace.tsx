@@ -2,7 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { BarChart3, BrainCircuit, Hash, RadioTower, Sparkles, X } from "lucide-react";
+import {
+  BarChart3,
+  BrainCircuit,
+  Hash,
+  Phone,
+  PhoneOff,
+  RadioTower,
+  Sparkles,
+  Video,
+  X,
+} from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 
 import { Button } from "@/components/ui/button";
@@ -33,6 +43,12 @@ export function OrbitChatWorkspace() {
     acceptFriendRequest,
     declineFriendRequest,
     openOrCreateDmWithProfile,
+    startDmCall,
+    endActiveCall,
+    outgoingCallPending,
+    cancelOutgoingCall,
+    callNotice,
+    clearCallNotice,
   } = useOrbitSocialContext();
   const {
     activeView,
@@ -44,6 +60,7 @@ export function OrbitChatWorkspace() {
     channelsByServer,
     dmConversations,
     membershipsByServer,
+    activeCallSession,
     privacyMode,
     setActiveFriends,
   } = useOrbitNavStore(
@@ -57,6 +74,7 @@ export function OrbitChatWorkspace() {
       channelsByServer: state.channelsByServer,
       dmConversations: state.dmConversations,
       membershipsByServer: state.membershipsByServer,
+      activeCallSession: state.activeCallSession,
       privacyMode: state.privacyMode,
       setActiveFriends: state.setActiveFriends,
     })),
@@ -183,6 +201,40 @@ export function OrbitChatWorkspace() {
               <BrainCircuit className="h-4 w-4 text-violet-300" />
               Orbit AI summarizer
             </div>
+            {activeView === "DM_THREAD" && activeDmConversation ? (
+              <div className="ml-2 flex items-center gap-1">
+                <Button
+                  className="rounded-full"
+                  onClick={() =>
+                    void startDmCall(activeDmConversation.otherProfile, {
+                      threadId: activeDmConversation.thread.id,
+                      mode: "AUDIO",
+                    })
+                  }
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                >
+                  <Phone className="h-4 w-4" />
+                  Voice
+                </Button>
+                <Button
+                  className="rounded-full"
+                  onClick={() =>
+                    void startDmCall(activeDmConversation.otherProfile, {
+                      threadId: activeDmConversation.thread.id,
+                      mode: "VIDEO",
+                    })
+                  }
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                >
+                  <Video className="h-4 w-4" />
+                  Video
+                </Button>
+              </div>
+            ) : null}
             {isTextServerChannel ? (
               <div className="ml-2 flex items-center gap-1">
                 <Button
@@ -242,14 +294,66 @@ export function OrbitChatWorkspace() {
           {summaryError}
         </p>
       ) : null}
+      {callNotice ? (
+        <p className="mb-3 rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+          {callNotice}
+          {outgoingCallPending ? (
+            <button
+              className="ml-2 text-amber-200 underline-offset-2 hover:underline"
+              onClick={() => void cancelOutgoingCall()}
+              type="button"
+            >
+              Cancel call
+            </button>
+          ) : null}
+          <button
+            className="ml-2 text-amber-200 underline-offset-2 hover:underline"
+            onClick={() => clearCallNotice()}
+            type="button"
+          >
+            Dismiss
+          </button>
+        </p>
+      ) : null}
       {showAnalytics ? (
         <ServerAnalyticsDashboard
           enabled={canViewAnalytics}
           serverId={activeServer?.id ?? null}
         />
       ) : null}
+      {activeCallSession ? (
+        <div className="mb-3 flex min-h-0 flex-1 flex-col rounded-2xl border border-violet-400/30 bg-black/25 p-3">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-[0.14em] text-violet-200">Live Call</p>
+              <p className="truncate text-sm text-zinc-100">
+                With {activeCallSession.peer_name} · {activeCallSession.mode.toLowerCase()}
+              </p>
+            </div>
+            <Button
+              className="rounded-full"
+              onClick={() => void endActiveCall()}
+              size="sm"
+              type="button"
+              variant="destructive"
+            >
+              <PhoneOff className="h-4 w-4" />
+              End call
+            </Button>
+          </div>
+          <div className="min-h-0 flex-1">
+            <LivekitChannelRoom
+              channelId={activeCallSession.room_id}
+              channelType={activeCallSession.mode}
+              displayName={profile?.full_name ?? profile?.username ?? "Orbit User"}
+              serverId="dm-call"
+              userId={profile?.id ?? "guest"}
+            />
+          </div>
+        </div>
+      ) : null}
 
-      {activeView === "FRIENDS" ? (
+      {activeCallSession ? null : activeView === "FRIENDS" ? (
         <FriendsView
           acceptFriendRequest={acceptFriendRequest}
           declineFriendRequest={declineFriendRequest}

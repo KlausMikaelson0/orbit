@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { AccessToken } from "livekit-server-sdk";
 
+import { getSupabaseServerClient } from "@/lib/supabase/server";
+
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
@@ -23,6 +25,26 @@ export async function GET(request: Request) {
     return NextResponse.json(
       { error: "Missing room or identity." },
       { status: 400 },
+    );
+  }
+
+  if (room.length > 180 || identity.length > 64) {
+    return NextResponse.json(
+      { error: "Invalid room or identity format." },
+      { status: 400 },
+    );
+  }
+
+  const supabase = await getSupabaseServerClient();
+  const { data: authData } = await supabase.auth.getUser();
+  const authUserId = authData.user?.id ?? null;
+  if (!authUserId) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
+  if (identity !== authUserId) {
+    return NextResponse.json(
+      { error: "Identity mismatch for token request." },
+      { status: 403 },
     );
   }
 

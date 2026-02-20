@@ -24,6 +24,7 @@ import { useShallow } from "zustand/react/shallow";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { SwipeDismissable } from "@/components/ui/swipe-dismissable";
+import { OrbitIncomingCallModal } from "@/src/components/calls/orbit-incoming-call-modal";
 import { OrbitModals } from "@/src/components/modals/orbit-modals";
 import { OrbitWelcomeTutorial } from "@/src/components/onboarding/orbit-welcome-tutorial";
 import { ChannelSidebar } from "@/src/components/sidebar/channel-sidebar";
@@ -36,6 +37,7 @@ import { useOrbitLocale } from "@/src/hooks/use-orbit-locale";
 import { useOrbitThemeEngine } from "@/src/hooks/use-orbit-theme-engine";
 import { useOrbitSocial } from "@/src/hooks/use-orbit-social";
 import { useOrbitWorkspace } from "@/src/hooks/use-orbit-workspace";
+import { ensureNotificationPermission } from "@/src/lib/orbit-notifications";
 import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 
@@ -160,6 +162,13 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
     return () => subscription.unsubscribe();
   }, [supabase]);
 
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+    void ensureNotificationPermission();
+  }, [session]);
+
   async function signOut() {
     if (!isSupabaseReady) {
       return;
@@ -222,6 +231,7 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
           onJoinSpace={() => onOpen("joinServer")}
           serverCount={serverCount}
         />
+        <OrbitIncomingCallModal />
 
         <div className="relative mx-auto flex h-screen w-full max-w-[1700px] gap-4 p-4">
           <div className="hidden md:block">

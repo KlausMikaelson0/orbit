@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatTime, getConversationKey, isImageAttachment, isPdfAttachment } from "@/lib/utils";
+import { extractOrbitUrls, fetchOrbitLinkPreview } from "@/src/lib/orbit-link-preview";
 import { scoreOrbitToxicity } from "@/src/lib/orbit-bot";
 import {
   notifyOrbitMessage,
@@ -18,7 +19,7 @@ import {
 } from "@/src/lib/orbit-notifications";
 import { getOrbitSupabaseClient } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
-import type { OrbitMessage, OrbitMessageView } from "@/src/types/orbit";
+import type { OrbitLinkPreview, OrbitMessage, OrbitMessageView } from "@/src/types/orbit";
 
 interface ChatMessagesProps {
   mode: "channel" | "dm";
@@ -39,6 +40,9 @@ export function ChatMessages({
 }: ChatMessagesProps) {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
   const [loading, setLoading] = useState(false);
+  const [linkPreviewByUrl, setLinkPreviewByUrl] = useState<
+    Record<string, OrbitLinkPreview | null>
+  >({});
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const conversationKey = getConversationKey(mode, conversationId);
 
@@ -200,10 +204,11 @@ export function ChatMessages({
         return;
       }
 
-      playOrbitPingSound();
-      const title = "New channel message";
-      const body = message.content ?? "Sent an attachment";
-      if (document.hidden) {
+      const notFocused = document.visibilityState !== "visible";
+      if (notFocused) {
+        playOrbitPingSound();
+        const title = "New channel message";
+        const body = message.content ?? "Sent an attachment";
         await notifyOrbitMessage(title, body);
       }
     },
@@ -379,6 +384,51 @@ export function ChatMessages({
     return signals;
   }, [visibleMessages]);
 
+  const firstUrlByMessageId = useMemo(() => {
+    const mapping = new Map<string, string | null>();
+    for (const message of visibleMessages) {
+      mapping.set(message.id, extractOrbitUrls(message.content)[0] ?? null);
+    }
+    return mapping;
+  }, [visibleMessages]);
+
+  useEffect(() => {
+    const urlsToFetch = new Set<string>();
+    for (const url of firstUrlByMessageId.values()) {
+      if (!url) {
+        continue;
+      }
+      if (!(url in linkPreviewByUrl)) {
+        urlsToFetch.add(url);
+      }
+    }
+    if (!urlsToFetch.size) {
+      return;
+    }
+
+    let cancelled = false;
+    for (const url of urlsToFetch) {
+      void fetchOrbitLinkPreview(url).then((preview) => {
+        if (cancelled) {
+          return;
+        }
+        setLinkPreviewByUrl((current) => {
+          if (url in current) {
+            return current;
+          }
+          return {
+            ...current,
+            [url]: preview,
+          };
+        });
+      });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [firstUrlByMessageId, linkPreviewByUrl]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth",
@@ -406,6 +456,8 @@ export function ChatMessages({
           const signal = moderationSignals.get(message.id) ?? null;
           const isThreadRoot = threadParentId === message.id;
           const isReply = Boolean(message.thread_parent_id);
+          const firstUrl = firstUrlByMessageId.get(message.id) ?? null;
+          const linkPreview = firstUrl ? linkPreviewByUrl[firstUrl] : null;
 
           return (
             <article
@@ -458,6 +510,12 @@ export function ChatMessages({
                   </ReactMarkdown>
                 </div>
               ) : null}
+              {firstUrl ? (
+                <LinkPreviewCard
+                  preview={linkPreview}
+                  url={firstUrl}
+                />
+              ) : null}
               {message.file_url ? <AttachmentPreview message={message} /> : null}
 
               {mode === "channel" && !threadParentId && onOpenThread && !isReply ? (
@@ -501,6 +559,62 @@ export function ChatMessages({
   );
 }
 
+function LinkPreviewCard({
+  url,
+  preview,
+}: {
+  url: string;
+  preview: OrbitLinkPreview | null | undefined;
+}) {
+  if (preview === undefined) {
+    return (
+      <div className="mt-2 rounded-xl border border-white/10 bg-black/30 p-2">
+        <Skeleton className="h-20 rounded-lg" />
+      </div>
+    );
+  }
+
+  if (!preview) {
+    return null;
+  }
+
+  let hostname = "link preview";
+  try {
+    hostname = new URL(preview.url || url).hostname;
+  } catch {
+    hostname = "link preview";
+  }
+
+  return (
+    <a
+      className="mt-2 block overflow-hidden rounded-xl border border-white/10 bg-black/30 transition hover:border-violet-400/35"
+      href={preview.url || url}
+      rel="noreferrer"
+      target="_blank"
+    >
+      {preview.image ? (
+        <Image
+          alt={preview.title}
+          className="h-36 w-full object-cover"
+          height={360}
+          src={preview.image}
+          unoptimized
+          width={720}
+        />
+      ) : null}
+      <div className="space-y-1 p-3">
+        <p className="line-clamp-1 text-sm font-semibold text-violet-100">{preview.title}</p>
+        {preview.description ? (
+          <p className="line-clamp-2 text-xs text-zinc-300">{preview.description}</p>
+        ) : null}
+        <p className="line-clamp-1 text-[11px] text-zinc-500">
+          {preview.site_name ?? hostname}
+        </p>
+      </div>
+    </a>
+  );
+}
+
 function AttachmentPreview({ message }: { message: OrbitMessageView }) {
   const fileUrl = message.file_url;
   const attachmentName = message.attachment?.name ?? "Attachment";
@@ -508,6 +622,8 @@ function AttachmentPreview({ message }: { message: OrbitMessageView }) {
   const resolvedUrl = isPending ? null : fileUrl;
   const isImage =
     isImageAttachment(resolvedUrl) || message.attachment?.mimeType.startsWith("image/");
+  const isGif =
+    /\.gif(\?.*)?$/i.test(resolvedUrl ?? "") || message.attachment?.mimeType === "image/gif";
   const isPdf =
     isPdfAttachment(resolvedUrl) || message.attachment?.mimeType === "application/pdf";
 
@@ -529,7 +645,11 @@ function AttachmentPreview({ message }: { message: OrbitMessageView }) {
       <a href={resolvedUrl ?? ""} rel="noreferrer" target="_blank">
         <Image
           alt={attachmentName}
-          className="mt-2 max-h-72 w-auto rounded-lg border border-white/10 object-cover"
+          className={`mt-2 max-h-72 w-auto rounded-xl border object-cover ${
+            isGif
+              ? "border-violet-400/25 bg-black/30 shadow-[0_8px_30px_rgba(124,58,237,0.22)]"
+              : "border-white/10"
+          }`}
           height={720}
           src={resolvedUrl ?? ""}
           unoptimized

@@ -3,6 +3,7 @@ import { create } from "zustand";
 import type {
   OrbitChannel,
   OrbitDmConversation,
+  OrbitIncomingCall,
   OrbitMember,
   OrbitMessageView,
   OrbitNavSummary,
@@ -10,6 +11,7 @@ import type {
   OrbitRelationship,
   OrbitServer,
   OrbitServerMembership,
+  OrbitActiveCallSession,
   OrbitLocale,
   OrbitThemePreset,
   OrbitViewMode,
@@ -29,6 +31,8 @@ interface OrbitNavState {
   activeServerId: string | null;
   activeChannelId: string | null;
   activeDmThreadId: string | null;
+  incomingCall: OrbitIncomingCall | null;
+  activeCallSession: OrbitActiveCallSession | null;
   privacyMode: boolean;
   locale: OrbitLocale;
   themePreset: OrbitThemePreset;
@@ -57,6 +61,10 @@ interface OrbitNavState {
   removeMessage: (conversationKey: string, messageId: string) => void;
   setCollapsed: (collapsed: boolean) => void;
   toggleCollapsed: () => void;
+  setIncomingCall: (incomingCall: OrbitIncomingCall | null) => void;
+  clearIncomingCall: () => void;
+  setActiveCallSession: (session: OrbitActiveCallSession | null) => void;
+  clearActiveCallSession: () => void;
   setPrivacyMode: (value: boolean) => void;
   togglePrivacyMode: () => void;
   setLocale: (locale: OrbitLocale) => void;
@@ -92,6 +100,8 @@ export const useOrbitNavStore = create<OrbitNavState>((set, get) => ({
   activeServerId: null,
   activeChannelId: null,
   activeDmThreadId: null,
+  incomingCall: null,
+  activeCallSession: null,
   privacyMode: false,
   locale: "en",
   themePreset: "MIDNIGHT",
@@ -274,6 +284,10 @@ export const useOrbitNavStore = create<OrbitNavState>((set, get) => ({
     }),
   setCollapsed: (collapsed) => set({ collapsed }),
   toggleCollapsed: () => set((state) => ({ collapsed: !state.collapsed })),
+  setIncomingCall: (incomingCall) => set({ incomingCall }),
+  clearIncomingCall: () => set({ incomingCall: null }),
+  setActiveCallSession: (activeCallSession) => set({ activeCallSession }),
+  clearActiveCallSession: () => set({ activeCallSession: null }),
   setPrivacyMode: (value) => set({ privacyMode: value }),
   togglePrivacyMode: () =>
     set((state) => ({ privacyMode: !state.privacyMode })),

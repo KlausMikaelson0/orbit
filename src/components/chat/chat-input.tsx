@@ -2,21 +2,29 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { FileText, Loader2, Paperclip, SendHorizontal, X } from "lucide-react";
+import { FileText, Image as ImageIcon, Loader2, Paperclip, SendHorizontal, Smile, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getConversationKey, isImageAttachment, isPdfAttachment } from "@/lib/utils";
+import { OrbitEmojiPicker } from "@/src/components/chat/orbit-emoji-picker";
+import { OrbitGifPicker, type OrbitGifResult } from "@/src/components/chat/orbit-gif-picker";
 import {
   buildOrbitPollMarkdown,
   parseOrbitSlashCommand,
   requestOrbitSummary,
   scoreOrbitToxicity,
 } from "@/src/lib/orbit-bot";
+import { extractOrbitUrls, primeOrbitLinkPreview } from "@/src/lib/orbit-link-preview";
 import { moderateOrbitImageFilename } from "@/src/lib/orbit-image-moderation";
 import { getOrbitSupabaseClient } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
-import type { OrbitMember, OrbitMessageView, OrbitProfile } from "@/src/types/orbit";
+import type {
+  OrbitAttachmentMeta,
+  OrbitMember,
+  OrbitMessageView,
+  OrbitProfile,
+} from "@/src/types/orbit";
 
 interface ChatInputProps {
   mode: "channel" | "dm";
@@ -56,6 +64,8 @@ export function ChatInput({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [gifPickerOpen, setGifPickerOpen] = useState(false);
 
   useEffect(() => {
     if (!attachment) {
@@ -108,6 +118,194 @@ export function ChatInput({
     return data.publicUrl;
   }
 
+  function consumeClientRateLimit() {
+    const now = Date.now();
+    sendTimestampsRef.current = sendTimestampsRef.current.filter(
+      (timestamp) => now - timestamp < RATE_WINDOW_MS,
+    );
+    if (sendTimestampsRef.current.length >= RATE_LIMIT_COUNT) {
+      setError("Rate limit reached. Please slow down for a few seconds.");
+      return false;
+    }
+    sendTimestampsRef.current.push(now);
+    return true;
+  }
+
+  async function persistMessage(options: {
+    contentToSend: string;
+    resolvedFileUrl: string | null;
+    optimisticFileUrl?: string | null;
+    attachmentMeta: OrbitAttachmentMeta | null;
+  }) {
+    if (!conversationId || !profile || !conversationKey) {
+      throw new Error("Missing conversation context.");
+    }
+
+    const messageText = options.contentToSend.trim();
+    if (!messageText && !options.resolvedFileUrl) {
+      throw new Error("Message content is required.");
+    }
+
+    if (messageText) {
+      const firstUrl = extractOrbitUrls(messageText)[0] ?? null;
+      if (firstUrl) {
+        primeOrbitLinkPreview(firstUrl);
+      }
+    }
+
+    const tempId = `temp-${crypto.randomUUID()}`;
+    const optimisticMessage: OrbitMessageView = {
+      id: tempId,
+      content: messageText || null,
+      file_url: options.optimisticFileUrl ?? options.resolvedFileUrl,
+      member_id: mode === "channel" ? member?.id ?? null : null,
+      channel_id: mode === "channel" ? conversationId : null,
+      profile_id: mode === "dm" ? profile.id : null,
+      thread_id: mode === "dm" ? conversationId : null,
+      thread_parent_id: mode === "channel" ? threadParentId : null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      optimistic: true,
+      moderation: messageText
+        ? (() => {
+            const signal = scoreOrbitToxicity(messageText);
+            return signal.flagged
+              ? { score: signal.score, reason: signal.reason }
+              : null;
+          })()
+        : null,
+      attachment: options.attachmentMeta,
+      author: {
+        member: mode === "channel" ? member : null,
+        profile,
+      },
+    };
+    upsertMessage(conversationKey, optimisticMessage);
+
+    let insertError: string | null = null;
+    let insertedRow: Record<string, unknown> | null = null;
+
+    if (mode === "channel") {
+      const { data, error } = await supabase
+        .from("messages")
+        .insert({
+          content: messageText || null,
+          file_url: options.resolvedFileUrl,
+          member_id: member?.id ?? null,
+          channel_id: conversationId,
+          thread_parent_id: threadParentId,
+        })
+        .select("*")
+        .single();
+      insertError = error?.message ?? null;
+      insertedRow = (data as Record<string, unknown> | null) ?? null;
+    } else {
+      const { data, error } = await supabase
+        .from("dm_messages")
+        .insert({
+          content: messageText || null,
+          file_url: options.resolvedFileUrl,
+          profile_id: profile.id,
+          thread_id: conversationId,
+        })
+        .select("*")
+        .single();
+      insertError = error?.message ?? null;
+      insertedRow = (data as Record<string, unknown> | null) ?? null;
+    }
+
+    if (insertError || !insertedRow) {
+      removeMessage(conversationKey, tempId);
+      throw new Error(insertError ?? "Unable to send message.");
+    }
+
+    const committedMessage: OrbitMessageView = {
+      id: String(insertedRow.id),
+      content: (insertedRow.content as string | null) ?? null,
+      file_url: (insertedRow.file_url as string | null) ?? null,
+      member_id:
+        mode === "channel" ? ((insertedRow.member_id as string | null) ?? null) : null,
+      channel_id:
+        mode === "channel" ? ((insertedRow.channel_id as string | null) ?? null) : null,
+      profile_id:
+        mode === "dm" ? ((insertedRow.profile_id as string | null) ?? profile.id) : null,
+      thread_id:
+        mode === "dm" ? ((insertedRow.thread_id as string | null) ?? conversationId) : null,
+      thread_parent_id:
+        mode === "channel"
+          ? ((insertedRow.thread_parent_id as string | null) ?? threadParentId)
+          : null,
+      created_at: String(insertedRow.created_at),
+      updated_at: String(insertedRow.updated_at),
+      optimistic: false,
+      moderation: messageText
+        ? (() => {
+            const signal = scoreOrbitToxicity(messageText);
+            return signal.flagged
+              ? { score: signal.score, reason: signal.reason }
+              : null;
+          })()
+        : null,
+      attachment: options.attachmentMeta,
+      author: {
+        member: mode === "channel" ? member : null,
+        profile,
+      },
+    };
+
+    replaceMessage(conversationKey, tempId, committedMessage);
+
+    if (mode === "channel" && committedMessage.moderation?.score && profile) {
+      void supabase.from("message_flags").upsert(
+        {
+          message_id: committedMessage.id,
+          flagged_by: profile.id,
+          model: "orbit-sentiment-v1",
+          score: committedMessage.moderation.score,
+          reason: committedMessage.moderation.reason,
+        },
+        { onConflict: "message_id,flagged_by,model" },
+      );
+    }
+  }
+
+  async function sendGifMessage(gif: OrbitGifResult) {
+    if (!conversationId || !profile || !conversationKey) {
+      return;
+    }
+    if (mode === "channel" && !member) {
+      return;
+    }
+    if (!consumeClientRateLimit()) {
+      return;
+    }
+
+    setSending(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      await persistMessage({
+        contentToSend: "",
+        resolvedFileUrl: gif.url,
+        optimisticFileUrl: gif.preview_url ?? gif.url,
+        attachmentMeta: {
+          name: `${(gif.title || "Orbit GIF").slice(0, 48)}.gif`,
+          mimeType: "image/gif",
+        },
+      });
+      setGifPickerOpen(false);
+    } catch (gifError) {
+      setError(gifError instanceof Error ? gifError.message : "Unable to send GIF.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function appendEmoji(emoji: string) {
+    setContent((current) => `${current}${emoji}`);
+  }
+
   async function submitMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!conversationId || !profile || !conversationKey) {
@@ -123,15 +321,9 @@ export function ChatInput({
       return;
     }
 
-    const now = Date.now();
-    sendTimestampsRef.current = sendTimestampsRef.current.filter(
-      (timestamp) => now - timestamp < RATE_WINDOW_MS,
-    );
-    if (sendTimestampsRef.current.length >= RATE_LIMIT_COUNT) {
-      setError("Rate limit reached. Please slow down for a few seconds.");
+    if (!consumeClientRateLimit()) {
       return;
     }
-    sendTimestampsRef.current.push(now);
 
     setSending(true);
     setError(null);
@@ -264,42 +456,6 @@ export function ChatInput({
       attachmentInputRef.current.value = "";
     }
 
-    const tempId = `temp-${crypto.randomUUID()}`;
-    const optimisticMessage: OrbitMessageView = {
-      id: tempId,
-      content: contentToSend || null,
-      file_url: currentAttachment
-        ? attachmentPreview ?? `pending://${encodeURIComponent(currentAttachment.name)}`
-        : null,
-      member_id: mode === "channel" ? member?.id ?? null : null,
-      channel_id: mode === "channel" ? conversationId : null,
-      profile_id: mode === "dm" ? profile.id : null,
-      thread_id: mode === "dm" ? conversationId : null,
-      thread_parent_id: mode === "channel" ? threadParentId : null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      optimistic: true,
-      moderation: contentToSend
-        ? (() => {
-            const signal = scoreOrbitToxicity(contentToSend);
-            return signal.flagged
-              ? { score: signal.score, reason: signal.reason }
-              : null;
-          })()
-        : null,
-      attachment: currentAttachment
-        ? {
-            name: currentAttachment.name,
-            mimeType: currentAttachment.type || "application/octet-stream",
-          }
-        : null,
-      author: {
-        member: mode === "channel" ? member : null,
-        profile,
-      },
-    };
-    upsertMessage(conversationKey, optimisticMessage);
-
     let fileUrl: string | null = null;
     try {
       if (currentAttachment) {
@@ -316,100 +472,25 @@ export function ChatInput({
       return;
     }
 
-    let insertError: string | null = null;
-    let insertedRow: Record<string, unknown> | null = null;
-
-    if (mode === "channel") {
-      const { data, error } = await supabase
-        .from("messages")
-        .insert({
-          content: contentToSend || null,
-          file_url: fileUrl,
-          member_id: member?.id ?? null,
-          channel_id: conversationId,
-          thread_parent_id: threadParentId,
-        })
-        .select("*")
-        .single();
-      insertError = error?.message ?? null;
-      insertedRow = (data as Record<string, unknown> | null) ?? null;
-    } else {
-      const { data, error } = await supabase
-        .from("dm_messages")
-        .insert({
-          content: contentToSend || null,
-          file_url: fileUrl,
-          profile_id: profile.id,
-          thread_id: conversationId,
-        })
-        .select("*")
-        .single();
-      insertError = error?.message ?? null;
-      insertedRow = (data as Record<string, unknown> | null) ?? null;
-    }
-
-    if (insertError || !insertedRow) {
-      removeMessage(conversationKey, tempId);
-      setError(insertError ?? "Unable to send message.");
-      setSending(false);
-      return;
-    }
-
-    const committedMessage: OrbitMessageView = {
-      id: String(insertedRow.id),
-      content: (insertedRow.content as string | null) ?? null,
-      file_url: (insertedRow.file_url as string | null) ?? null,
-      member_id:
-        mode === "channel" ? ((insertedRow.member_id as string | null) ?? null) : null,
-      channel_id:
-        mode === "channel" ? ((insertedRow.channel_id as string | null) ?? null) : null,
-      profile_id:
-        mode === "dm" ? ((insertedRow.profile_id as string | null) ?? profile.id) : null,
-      thread_id:
-        mode === "dm" ? ((insertedRow.thread_id as string | null) ?? conversationId) : null,
-      thread_parent_id:
-        mode === "channel"
-          ? ((insertedRow.thread_parent_id as string | null) ?? threadParentId)
+    try {
+      await persistMessage({
+        contentToSend,
+        resolvedFileUrl: fileUrl,
+        optimisticFileUrl: currentAttachment
+          ? attachmentPreview ?? `pending://${encodeURIComponent(currentAttachment.name)}`
+          : fileUrl,
+        attachmentMeta: currentAttachment
+          ? {
+              name: currentAttachment.name,
+              mimeType: currentAttachment.type || "application/octet-stream",
+            }
           : null,
-      created_at: String(insertedRow.created_at),
-      updated_at: String(insertedRow.updated_at),
-      optimistic: false,
-      moderation: contentToSend
-        ? (() => {
-            const signal = scoreOrbitToxicity(contentToSend);
-            return signal.flagged
-              ? { score: signal.score, reason: signal.reason }
-              : null;
-          })()
-        : null,
-      attachment: currentAttachment
-        ? {
-            name: currentAttachment.name,
-            mimeType: currentAttachment.type || "application/octet-stream",
-          }
-        : null,
-      author: {
-        member: mode === "channel" ? member : null,
-        profile,
-      },
-    };
-
-    replaceMessage(conversationKey, tempId, committedMessage);
-
-    if (mode === "channel" && committedMessage.moderation?.score && profile) {
-      void supabase.from("message_flags").upsert(
-        {
-          message_id: committedMessage.id,
-          flagged_by: profile.id,
-          model: "orbit-sentiment-v1",
-          score: committedMessage.moderation.score,
-          reason: committedMessage.moderation.reason,
-        },
-        { onConflict: "message_id,flagged_by,model" },
-      );
+      });
+    } catch (persistError) {
+      setError(persistError instanceof Error ? persistError.message : "Unable to send message.");
+    } finally {
+      setSending(false);
     }
-
-    setSending(false);
   }
 
   const isDisabled =
@@ -474,6 +555,27 @@ export function ChatInput({
         >
           <Paperclip className="h-4 w-4" />
         </Button>
+        <Button
+          className="h-11 w-11 rounded-xl"
+          disabled={isDisabled}
+          onClick={() => setEmojiPickerOpen(true)}
+          size="icon"
+          type="button"
+          variant="secondary"
+        >
+          <Smile className="h-4 w-4" />
+        </Button>
+        <Button
+          className="h-11 rounded-xl px-3"
+          disabled={isDisabled}
+          onClick={() => setGifPickerOpen(true)}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
+          <ImageIcon className="h-4 w-4" />
+          GIF
+        </Button>
 
         <Input
           className="h-11 rounded-xl border-white/15 bg-black/35"
@@ -510,6 +612,17 @@ export function ChatInput({
           Orbit-Bot commands: /summarize · /clear 20 · /poll Question | Option A | Option B
         </p>
       ) : null}
+
+      <OrbitEmojiPicker
+        onOpenChange={setEmojiPickerOpen}
+        onSelectEmoji={appendEmoji}
+        open={emojiPickerOpen}
+      />
+      <OrbitGifPicker
+        onOpenChange={setGifPickerOpen}
+        onSelectGif={sendGifMessage}
+        open={gifPickerOpen}
+      />
     </form>
   );
 }

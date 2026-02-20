@@ -329,6 +329,19 @@ export function OrbitLandingPage() {
             {t("landing.aboutDesc")}
           </p>
         </section>
+
+        <footer className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm">
+          <p className="text-zinc-400">{t("landing.footerCopy")}</p>
+          <div className="flex items-center gap-3 text-zinc-300">
+            <span className="text-zinc-500">{t("landing.footerPolicyTitle")}</span>
+            <Link className="transition hover:text-white" href="/terms">
+              {t("landing.termsLink")}
+            </Link>
+            <Link className="transition hover:text-white" href="/privacy">
+              {t("landing.privacyLink")}
+            </Link>
+          </div>
+        </footer>
       </div>
     </div>
   );

@@ -1,4 +1,10 @@
 let audioContext: AudioContext | null = null;
+let incomingRingtoneAudio: HTMLAudioElement | null = null;
+let incomingRingtoneMuted = false;
+
+// Replace this URL with your own Heavenly.mp3 when ready.
+export const ORBIT_RINGTONE_URL =
+  "https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3";
 
 function getAudioContext() {
   if (typeof window === "undefined") {
@@ -38,6 +44,41 @@ export function playOrbitPingSound() {
 
   oscillator.start(now);
   oscillator.stop(now + 0.24);
+}
+
+export async function playOrbitIncomingRingtoneLoop() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (!incomingRingtoneAudio) {
+    incomingRingtoneAudio = new window.Audio(ORBIT_RINGTONE_URL);
+    incomingRingtoneAudio.loop = true;
+    incomingRingtoneAudio.preload = "auto";
+    incomingRingtoneAudio.volume = 0.34;
+  }
+
+  incomingRingtoneAudio.muted = incomingRingtoneMuted;
+  try {
+    await incomingRingtoneAudio.play();
+  } catch {
+    // Autoplay may be blocked until user interaction.
+  }
+}
+
+export function stopOrbitIncomingRingtone() {
+  if (!incomingRingtoneAudio) {
+    return;
+  }
+  incomingRingtoneAudio.pause();
+  incomingRingtoneAudio.currentTime = 0;
+}
+
+export function setOrbitIncomingRingtoneMuted(value: boolean) {
+  incomingRingtoneMuted = value;
+  if (incomingRingtoneAudio) {
+    incomingRingtoneAudio.muted = value;
+  }
 }
 
 export async function ensureNotificationPermission() {

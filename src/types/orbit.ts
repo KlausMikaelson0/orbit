@@ -64,6 +64,14 @@ export interface OrbitAttachmentMeta {
   mimeType: string;
 }
 
+export interface OrbitLinkPreview {
+  url: string;
+  title: string;
+  description: string | null;
+  image: string | null;
+  site_name: string | null;
+}
+
 export interface OrbitMessageView {
   id: string;
   content: string | null;
@@ -78,6 +86,7 @@ export interface OrbitMessageView {
   author: OrbitMessageAuthor;
   optimistic?: boolean;
   attachment?: OrbitAttachmentMeta | null;
+  link_preview?: OrbitLinkPreview | null;
   moderation?: OrbitModerationSignal | null;
 }
 
@@ -193,4 +202,27 @@ export interface OrbitServerWebhook {
   revoked_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface OrbitIncomingCall {
+  call_id: string;
+  caller_profile_id: string;
+  caller_name: string;
+  caller_avatar_url: string | null;
+  recipient_profile_id: string;
+  mode: "AUDIO" | "VIDEO";
+  room_id: string;
+  thread_id: string | null;
+  started_at: string;
+}
+
+export interface OrbitActiveCallSession {
+  call_id: string;
+  peer_profile_id: string;
+  peer_name: string;
+  peer_avatar_url: string | null;
+  mode: "AUDIO" | "VIDEO";
+  room_id: string;
+  thread_id: string | null;
+  joined_at: string;
 }
