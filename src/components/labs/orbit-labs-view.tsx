@@ -86,23 +86,25 @@ export function OrbitLabsView() {
   const [clipTitle, setClipTitle] = useState("");
   const [clipUrl, setClipUrl] = useState("");
   const [clipDuration, setClipDuration] = useState("30");
+  const [referenceNow, setReferenceNow] = useState("");
 
   const channelsForScope = useMemo(
     () => (scopeServerId ? channelsByServer[scopeServerId] ?? [] : []),
     [channelsByServer, scopeServerId],
   );
-  const activeSeason = useMemo(
-    () =>
+  const activeSeason = useMemo(() => {
+    const referenceTime = referenceNow ? new Date(referenceNow).getTime() : 0;
+    return (
       seasons.find(
         (season) =>
           season.is_active &&
-          new Date(season.starts_at).getTime() <= Date.now() &&
-          new Date(season.ends_at).getTime() >= Date.now(),
+          new Date(season.starts_at).getTime() <= referenceTime &&
+          new Date(season.ends_at).getTime() >= referenceTime,
       ) ??
       seasons[0] ??
-      null,
-    [seasons],
-  );
+      null
+    );
+  }, [referenceNow, seasons]);
   const activeSeasonProgress = useMemo(
     () =>
       activeSeason
@@ -128,6 +130,10 @@ export function OrbitLabsView() {
       setScopeServerId(servers[0].id);
     }
   }, [scopeServerId, servers]);
+
+  useEffect(() => {
+    setReferenceNow(new Date().toISOString());
+  }, [seasons]);
 
   useEffect(() => {
     if (!scopeServerId) {
@@ -197,7 +203,19 @@ export function OrbitLabsView() {
         setLoading(false);
         return;
       }
-      setLeaderboard((leaderboardResult.data ?? []) as OrbitLeaderboardEntry[]);
+      const normalizedLeaderboard = ((leaderboardResult.data ?? []) as Array<{
+        profile_id: string;
+        points: number;
+        wins: number;
+        streak: number;
+        created_at: string;
+        updated_at: string;
+        profile?: OrbitLeaderboardEntry["profile"] | OrbitLeaderboardEntry["profile"][] | null;
+      }>).map((row) => ({
+        ...row,
+        profile: Array.isArray(row.profile) ? row.profile[0] ?? null : row.profile ?? null,
+      })) as OrbitLeaderboardEntry[];
+      setLeaderboard(normalizedLeaderboard);
 
       if (profile?.id) {
         const seasonProgressResult = await supabase
@@ -325,7 +343,7 @@ export function OrbitLabsView() {
       setClips((clipsResult.data ?? []) as OrbitCallClip[]);
       setLoading(false);
     },
-    [profile?.id, supabase],
+    [profile, supabase],
   );
 
   useEffect(() => {
