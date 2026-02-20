@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { getOrbitSupabaseClient } from "@/src/lib/supabase-browser";
+import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 
 export interface OrbitServerAnalytics {
@@ -39,6 +39,9 @@ function normalizeProfileId(row: MessageAnalyticsRow) {
 export function useServerAnalytics(serverId: string | null, enabled: boolean) {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
   const onlineProfileIds = useOrbitNavStore((state) => state.onlineProfileIds);
+  const channelsByServer = useOrbitNavStore((state) => state.channelsByServer);
+  const membershipsByServer = useOrbitNavStore((state) => state.membershipsByServer);
+  const messageCache = useOrbitNavStore((state) => state.messageCache);
   const [analytics, setAnalytics] = useState<OrbitServerAnalytics | null>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
@@ -51,6 +54,50 @@ export function useServerAnalytics(serverId: string | null, enabled: boolean) {
 
     setLoadingAnalytics(true);
     setAnalyticsError(null);
+
+    if (!isSupabaseReady) {
+      const channels = channelsByServer[serverId] ?? [];
+      const channelMessages = channels.flatMap(
+        (channel) => messageCache[`channel:${channel.id}`] ?? [],
+      );
+      const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const rows7d = channelMessages.filter((message) => message.created_at >= since7d);
+      const rows24h = rows7d.filter((message) => message.created_at >= since24h);
+
+      const memberProfileIds = new Set<string>();
+      const currentMembership = membershipsByServer[serverId];
+      if (currentMembership?.profile_id) {
+        memberProfileIds.add(currentMembership.profile_id);
+      }
+      for (const message of channelMessages) {
+        const profileId = message.author.profile?.id ?? message.profile_id ?? null;
+        if (profileId) {
+          memberProfileIds.add(profileId);
+        }
+      }
+
+      const activeMembers24h = new Set(
+        rows24h
+          .map((message) => message.author.profile?.id ?? message.profile_id ?? null)
+          .filter((id): id is string => Boolean(id)),
+      ).size;
+      const currentlyOnline = [...memberProfileIds].filter((id) =>
+        onlineProfileIds.includes(id),
+      ).length;
+
+      setAnalytics({
+        membersTotal: memberProfileIds.size,
+        channelsTotal: channels.length,
+        activeMembers24h,
+        currentlyOnline,
+        messages24h: rows24h.length,
+        messages7d: rows7d.length,
+        source: "client-fallback",
+      });
+      setLoadingAnalytics(false);
+      return;
+    }
 
     const sessionResult = await supabase.auth.getSession();
     const accessToken = sessionResult.data.session?.access_token ?? null;
@@ -165,7 +212,15 @@ export function useServerAnalytics(serverId: string | null, enabled: boolean) {
       source: "client-fallback",
     });
     setLoadingAnalytics(false);
-  }, [enabled, onlineProfileIds, serverId, supabase]);
+  }, [
+    channelsByServer,
+    enabled,
+    membershipsByServer,
+    messageCache,
+    onlineProfileIds,
+    serverId,
+    supabase,
+  ]);
 
   useEffect(() => {
     void fetchAnalytics();
