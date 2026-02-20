@@ -8,6 +8,7 @@ Orbit is a realtime productivity-social platform built in phases:
 - **Phase 5**: Theme engine, Orbit-Bot commands/moderation, channel tasks, threaded replies, PWA readiness
 - **Phase 6**: Mobile gestures, developer webhook API, onboarding + analytics, security hardening
 - **Phase 7**: Orbit Pulse subscriptions, Starbits wallet economy, Orbit Vault cosmetics store
+- **Phase 8**: Orbit Missions quest engine for sponsored engagement revenue
 
 ## Stack
 
@@ -62,6 +63,12 @@ Orbit is a realtime productivity-social platform built in phases:
 - **Starbits wallet** with daily claim loop and transaction history
 - **Orbit Vault store** with purchasable cosmetic inventory
 - **Background cosmetics** users can buy, own, and equip per profile
+
+### Quest Monetization (Phase 8)
+- **Orbit Missions**: repeatable quests for visit/watch/play/social actions
+- **Sponsored mission fields** (`sponsor_name`, `sponsor_url`) for ad-backed campaigns
+- **Quest action events** to track engagement and feed ad/revenue analytics
+- **Quest reward claiming** that pays out Starbits into user wallets
 
 ## Local development
 
@@ -125,6 +132,7 @@ Run migrations in order from `supabase/migrations/`:
 4. `20260219_orbit_phase5_power_user.sql`
 5. `20260219_orbit_phase6_growth.sql`
 6. `20260220_orbit_phase7_monetization.sql`
+7. `20260220_orbit_phase8_quests.sql`
 
 Phase 5 adds:
 - `orbit_bots` (per-server bot metadata)
@@ -141,6 +149,11 @@ Phase 7 adds:
 - `orbit_store_items` and `profile_store_inventory` (store catalog + owned cosmetics)
 - profile background personalization columns on `profiles`
 - RPCs: `claim_daily_starbits`, `buy_store_item`, `set_active_store_background`
+
+Phase 8 adds:
+- `orbit_quests`, `profile_quest_progress`, `orbit_quest_action_events`
+- RPCs: `orbit_log_quest_action`, `orbit_claim_quest_reward`
+- seeded mission templates for visit, watch, play, and social quest loops
 
 Also make sure Supabase Auth providers include:
 - Email/Password
@@ -248,6 +261,7 @@ This runs lint/build before `vercel --prod`.
 ## Final Go-Live Checklist (Vercel)
 
 - [ ] All migrations applied through Phase 7
+- [ ] All migrations applied through Phase 8
 - [ ] Supabase Auth providers configured (Email/Password + Google + MFA)
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` added in Vercel
 - [ ] LiveKit keys configured and `/api/livekit/token` verified

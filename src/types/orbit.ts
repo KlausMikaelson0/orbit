@@ -7,6 +7,12 @@ export type OrbitTaskStatus = "TODO" | "IN_PROGRESS" | "DONE";
 export type OrbitLocale = "en" | "ar" | "tr";
 export type OrbitSubscriptionTier = "FREE" | "PULSE" | "PULSE_PLUS";
 export type OrbitSubscriptionStatus = "ACTIVE" | "PAST_DUE" | "CANCELED";
+export type OrbitQuestCategory = "VISIT" | "WATCH" | "PLAY" | "SOCIAL";
+export type OrbitQuestActionType =
+  | "VISIT_APP"
+  | "WATCH_AD"
+  | "PLAY_SESSION"
+  | "SOCIAL_SHARE";
 
 export interface OrbitProfile {
   id: string;
@@ -269,4 +275,37 @@ export interface OrbitStoreItem {
 export interface OrbitInventoryItem {
   item_slug: string;
   purchased_at: string;
+}
+
+export interface OrbitQuest {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  category: OrbitQuestCategory;
+  action_type: OrbitQuestActionType;
+  reward_starbits: number;
+  target_count: number;
+  repeat_interval_hours: number;
+  sponsor_name: string | null;
+  sponsor_url: string | null;
+  is_active: boolean;
+  active_from: string | null;
+  active_to: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitQuestProgress {
+  id: string;
+  profile_id: string;
+  quest_id: string;
+  progress_count: number;
+  target_count_snapshot: number;
+  completed_at: string | null;
+  last_action_at: string | null;
+  last_claimed_at: string | null;
+  created_at: string;
+  updated_at: string;
 }

@@ -27,6 +27,10 @@ import type {
   ChannelType,
   OrbitInventoryItem,
   OrbitProfile,
+  OrbitQuest,
+  OrbitQuestActionType,
+  OrbitQuestCategory,
+  OrbitQuestProgress,
   OrbitProfileSubscription,
   OrbitProfileWallet,
   OrbitStoreItem,
@@ -119,6 +123,36 @@ function formatTierLabel(tier: OrbitSubscriptionTier | null | undefined) {
   return "Orbit Free";
 }
 
+function getQuestActionLabel(category: OrbitQuestCategory) {
+  switch (category) {
+    case "VISIT":
+      return "Log app visit";
+    case "WATCH":
+      return "Watch sponsor";
+    case "PLAY":
+      return "Play mini run";
+    case "SOCIAL":
+      return "Share activity";
+    default:
+      return "Progress quest";
+  }
+}
+
+function questActionByCategory(category: OrbitQuestCategory): OrbitQuestActionType {
+  switch (category) {
+    case "VISIT":
+      return "VISIT_APP";
+    case "WATCH":
+      return "WATCH_AD";
+    case "PLAY":
+      return "PLAY_SESSION";
+    case "SOCIAL":
+      return "SOCIAL_SHARE";
+    default:
+      return "VISIT_APP";
+  }
+}
+
 export function OrbitModals({
   createServer,
   createChannel,
@@ -172,10 +206,16 @@ export function OrbitModals({
   const [switchingTier, setSwitchingTier] = useState<OrbitSubscriptionTier | null>(null);
   const [claimingDaily, setClaimingDaily] = useState(false);
   const [storeActionKey, setStoreActionKey] = useState<string | null>(null);
+  const [questActionKey, setQuestActionKey] = useState<string | null>(null);
   const [subscription, setSubscription] = useState<OrbitProfileSubscription | null>(null);
   const [wallet, setWallet] = useState<OrbitProfileWallet | null>(null);
   const [storeItems, setStoreItems] = useState<OrbitStoreItem[]>([]);
   const [inventory, setInventory] = useState<OrbitInventoryItem[]>([]);
+  const [loadingQuests, setLoadingQuests] = useState(false);
+  const [questError, setQuestError] = useState<string | null>(null);
+  const [questSuccess, setQuestSuccess] = useState<string | null>(null);
+  const [quests, setQuests] = useState<OrbitQuest[]>([]);
+  const [questProgressRows, setQuestProgressRows] = useState<OrbitQuestProgress[]>([]);
 
   const createServerOpen = isOpen && type === "createServer";
   const createChannelOpen = isOpen && type === "createChannel";
@@ -186,6 +226,14 @@ export function OrbitModals({
   const ownedItemSlugs = useMemo(
     () => new Set(inventory.map((entry) => entry.item_slug)),
     [inventory],
+  );
+  const questProgressByQuestId = useMemo(
+    () =>
+      Object.fromEntries(questProgressRows.map((row) => [row.quest_id, row])) as Record<
+        string,
+        OrbitQuestProgress
+      >,
+    [questProgressRows],
   );
   const dailyClaimWindow = useMemo(
     () => getDailyClaimWindow(wallet?.last_daily_claim_at ?? null),
@@ -209,6 +257,9 @@ export function OrbitModals({
     setSwitchingTier(null);
     setClaimingDaily(false);
     setStoreActionKey(null);
+    setQuestActionKey(null);
+    setQuestError(null);
+    setQuestSuccess(null);
     onClose();
   }
 
@@ -316,6 +367,99 @@ export function OrbitModals({
     setInventory((inventoryResult.data ?? []) as OrbitInventoryItem[]);
     setLoadingCommerce(false);
   }, [supabase]);
+
+  const fetchQuestState = useCallback(async () => {
+    setLoadingQuests(true);
+    setQuestError(null);
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setQuestError(userError?.message ?? "Unable to load Orbit Missions.");
+      setLoadingQuests(false);
+      return;
+    }
+
+    const [questsResult, progressResult] = await Promise.all([
+      supabase
+        .from("orbit_quests")
+        .select("*")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true }),
+      supabase
+        .from("profile_quest_progress")
+        .select("*")
+        .eq("profile_id", user.id),
+    ]);
+
+    if (questsResult.error) {
+      setQuestError(questsResult.error.message);
+      setLoadingQuests(false);
+      return;
+    }
+
+    if (progressResult.error) {
+      setQuestError(progressResult.error.message);
+      setLoadingQuests(false);
+      return;
+    }
+
+    setQuests((questsResult.data ?? []) as OrbitQuest[]);
+    setQuestProgressRows((progressResult.data ?? []) as OrbitQuestProgress[]);
+    setLoadingQuests(false);
+  }, [supabase]);
+
+  async function progressQuest(quest: OrbitQuest) {
+    setQuestActionKey(`progress:${quest.slug}`);
+    setQuestError(null);
+    setQuestSuccess(null);
+
+    const { error } = await supabase.rpc("orbit_log_quest_action", {
+      target_slug: quest.slug,
+      action_type: questActionByCategory(quest.category),
+      amount: 1,
+      metadata: { surface: "settings_modal" },
+    });
+
+    if (error) {
+      setQuestError(error.message);
+      setQuestActionKey(null);
+      return;
+    }
+
+    setQuestSuccess(`${quest.title} progress updated.`);
+    await fetchQuestState();
+    setQuestActionKey(null);
+  }
+
+  async function claimQuestReward(quest: OrbitQuest) {
+    setQuestActionKey(`claim:${quest.slug}`);
+    setQuestError(null);
+    setQuestSuccess(null);
+
+    const { data, error } = await supabase.rpc("orbit_claim_quest_reward", {
+      target_slug: quest.slug,
+    });
+
+    if (error) {
+      setQuestError(error.message);
+      setQuestActionKey(null);
+      return;
+    }
+
+    const row =
+      (Array.isArray(data) ? data[0] : data) as
+        | { rewarded?: number; balance?: number; next_claim_at?: string }
+        | null;
+    const rewardValue = typeof row?.rewarded === "number" ? row.rewarded : quest.reward_starbits;
+    setQuestSuccess(`Mission claimed: +${rewardValue} Starbits.`);
+
+    await Promise.all([fetchQuestState(), fetchCommerceState()]);
+    setQuestActionKey(null);
+  }
 
   async function switchSubscriptionTier(nextTier: OrbitSubscriptionTier) {
     const currentTier = subscription?.tier ?? "FREE";
@@ -460,7 +604,8 @@ export function OrbitModals({
     }
     void fetchMfaState();
     void fetchCommerceState();
-  }, [fetchCommerceState, fetchMfaState, settingsOpen]);
+    void fetchQuestState();
+  }, [fetchCommerceState, fetchMfaState, fetchQuestState, settingsOpen]);
 
   async function enrollTotp() {
     setMfaError(null);
@@ -1006,6 +1151,149 @@ export function OrbitModals({
                 {commerceSuccess ? (
                   <p className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
                     {commerceSuccess}
+                  </p>
+                ) : null}
+              </section>
+
+              <section className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
+                      Orbit Missions
+                    </p>
+                    <p className="text-sm text-zinc-200">
+                      Quests built in Orbit style: visits, sponsor moments, mini-play loops, and social actions.
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-cyan-400/35 bg-cyan-500/12 px-2.5 py-1 text-[10px] uppercase tracking-wide text-cyan-100">
+                    Ad + engagement revenue layer
+                  </span>
+                </div>
+                <div>
+                  <Button
+                    className="rounded-full"
+                    disabled={loadingQuests}
+                    onClick={() => void fetchQuestState()}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Store className="h-4 w-4" />
+                    Refresh missions
+                  </Button>
+                </div>
+
+                {loadingQuests ? (
+                  <p className="text-sm text-zinc-300">Loading missions...</p>
+                ) : (
+                  <div className="space-y-3">
+                    {!quests.length ? (
+                      <p className="text-sm text-zinc-300">
+                        No missions yet. Seed quests from Phase 8 migration.
+                      </p>
+                    ) : null}
+                    {quests.map((quest) => {
+                      const progressRow = questProgressByQuestId[quest.id];
+                      const progressCount = progressRow?.progress_count ?? 0;
+                      const targetCount = progressRow?.target_count_snapshot ?? quest.target_count;
+                      const isCompleted = Boolean(progressRow?.completed_at);
+                      const progressActionKey = `progress:${quest.slug}`;
+                      const claimActionKey = `claim:${quest.slug}`;
+                      const isProgressing = questActionKey === progressActionKey;
+                      const isClaiming = questActionKey === claimActionKey;
+                      const nextCycleAt = progressRow?.last_claimed_at
+                        ? new Date(
+                            new Date(progressRow.last_claimed_at).getTime() +
+                              quest.repeat_interval_hours * 60 * 60 * 1000,
+                          )
+                        : null;
+
+                      return (
+                        <article
+                          className="space-y-2 rounded-xl border border-white/10 bg-black/35 p-3"
+                          key={quest.id}
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-semibold text-zinc-100">{quest.title}</p>
+                              <p className="text-xs text-zinc-300">{quest.description}</p>
+                            </div>
+                            <span className="rounded-full border border-emerald-400/35 bg-emerald-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-emerald-100">
+                              +{quest.reward_starbits} Starbits
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-400">
+                            <span className="rounded-full border border-white/15 px-2 py-0.5">
+                              {quest.category}
+                            </span>
+                            <span>
+                              Progress: {progressCount}/{targetCount}
+                            </span>
+                            <span>Cycle: every {quest.repeat_interval_hours}h</span>
+                            {quest.sponsor_name ? (
+                              <span className="rounded-full border border-violet-400/35 bg-violet-500/10 px-2 py-0.5 text-violet-100">
+                                Sponsor: {quest.sponsor_name}
+                              </span>
+                            ) : null}
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              className="rounded-full"
+                              disabled={isCompleted || isProgressing || isClaiming}
+                              onClick={() => void progressQuest(quest)}
+                              size="sm"
+                              type="button"
+                              variant="secondary"
+                            >
+                              {isProgressing ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : null}
+                              {getQuestActionLabel(quest.category)}
+                            </Button>
+                            <Button
+                              className="rounded-full"
+                              disabled={!isCompleted || isClaiming || isProgressing}
+                              onClick={() => void claimQuestReward(quest)}
+                              size="sm"
+                              type="button"
+                              variant={isCompleted ? "default" : "ghost"}
+                            >
+                              {isClaiming ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                              Claim reward
+                            </Button>
+                            {quest.sponsor_url ? (
+                              <a
+                                className="text-xs text-cyan-200 underline-offset-2 hover:underline"
+                                href={quest.sponsor_url}
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                Sponsor destination
+                              </a>
+                            ) : null}
+                          </div>
+
+                          {nextCycleAt ? (
+                            <p className="text-[11px] text-zinc-500">
+                              Last claim cycle resets around {nextCycleAt.toLocaleString()}.
+                            </p>
+                          ) : null}
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {questError ? (
+                  <p className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                    {questError}
+                  </p>
+                ) : null}
+                {questSuccess ? (
+                  <p className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                    {questSuccess}
                   </p>
                 ) : null}
               </section>
