@@ -123,6 +123,13 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
       };
     }
 
+    if (activeView === "LABS") {
+      return {
+        activeServerName: "Home",
+        activeChannelName: "Orbit Labs",
+      };
+    }
+
     if (activeView === "DM_THREAD") {
       const activeThread = dmConversations.find(
         (thread) => thread.thread.id === activeDmThreadId,

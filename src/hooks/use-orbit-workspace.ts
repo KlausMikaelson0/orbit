@@ -12,6 +12,7 @@ import type {
   OrbitMember,
   OrbitProfile,
   OrbitServer,
+  OrbitServerTemplateKey,
 } from "@/src/types/orbit";
 
 interface WorkspaceActionResult<T = void> {
@@ -22,6 +23,35 @@ interface WorkspaceActionResult<T = void> {
 interface MembershipRow extends OrbitMember {
   server: OrbitServer | OrbitServer[] | null;
 }
+
+const DEFAULT_SERVER_CHANNELS: Array<{ name: string; type: ChannelType }> = [
+  { name: "general", type: "TEXT" },
+];
+
+const SERVER_TEMPLATE_CHANNELS: Record<
+  OrbitServerTemplateKey,
+  Array<{ name: string; type: ChannelType }>
+> = {
+  community: [
+    { name: "announcements", type: "TEXT" },
+    { name: "general", type: "TEXT" },
+    { name: "events", type: "FORUM" },
+    { name: "town-hall", type: "AUDIO" },
+  ],
+  gaming: [
+    { name: "lobby", type: "TEXT" },
+    { name: "squad-chat", type: "TEXT" },
+    { name: "clips", type: "FORUM" },
+    { name: "voice-1", type: "AUDIO" },
+    { name: "stream-room", type: "VIDEO" },
+  ],
+  startup: [
+    { name: "announcements", type: "TEXT" },
+    { name: "ops", type: "TEXT" },
+    { name: "product-forum", type: "FORUM" },
+    { name: "standup-live", type: "AUDIO" },
+  ],
+};
 
 export function useOrbitWorkspace(user: User | null) {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
@@ -216,7 +246,11 @@ export function useOrbitWorkspace(user: User | null) {
   }, [activeServerId, fetchChannels, supabase]);
 
   const createServer = useCallback(
-    async (values: { name: string; imageUrl?: string }) => {
+    async (values: {
+      name: string;
+      imageUrl?: string;
+      templateKey?: OrbitServerTemplateKey | null;
+    }) => {
       if (!user) {
         return { error: "You must be signed in." } satisfies WorkspaceActionResult;
       }
@@ -259,21 +293,33 @@ export function useOrbitWorkspace(user: User | null) {
         } satisfies WorkspaceActionResult;
       }
 
-      const { data: channel } = await supabase
+      const templateChannels = values.templateKey
+        ? SERVER_TEMPLATE_CHANNELS[values.templateKey] ?? DEFAULT_SERVER_CHANNELS
+        : DEFAULT_SERVER_CHANNELS;
+
+      const { data: channels, error: channelsError } = await supabase
         .from("channels")
-        .insert({
-          name: "general",
-          type: "TEXT" as ChannelType,
-          server_id: server.id,
-        })
-        .select("*")
-        .single();
+        .insert(
+          templateChannels.map((channel) => ({
+            name: channel.name,
+            type: channel.type,
+            server_id: server.id,
+          })),
+        )
+        .select("*");
+
+      if (channelsError) {
+        return {
+          error: channelsError.message ?? "Failed to create server channels.",
+        } satisfies WorkspaceActionResult;
+      }
 
       upsertServer(server as OrbitServer, member as OrbitMember);
-      if (channel) {
-        upsertChannel(channel as OrbitChannel);
-      }
+      (channels ?? []).forEach((channel) => upsertChannel(channel as OrbitChannel));
       setActiveServer(server.id);
+      if (channels?.[0]?.id) {
+        setActiveChannel(channels[0].id);
+      }
 
       await fetchServers();
       await fetchChannels(server.id);
@@ -283,6 +329,7 @@ export function useOrbitWorkspace(user: User | null) {
     [
       fetchChannels,
       fetchServers,
+      setActiveChannel,
       setActiveServer,
       supabase,
       upsertChannel,

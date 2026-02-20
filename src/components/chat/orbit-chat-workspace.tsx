@@ -20,8 +20,10 @@ import { ServerAnalyticsDashboard } from "@/src/components/analytics/server-anal
 import { ChatInput } from "@/src/components/chat/chat-input";
 import { ChatMessages } from "@/src/components/chat/chat-messages";
 import { ChannelTasksPanel } from "@/src/components/chat/channel-tasks-panel";
+import { OrbitForumView } from "@/src/components/forum/orbit-forum-view";
 import { OrbitQuestsView } from "@/src/components/economy/orbit-quests-view";
 import { OrbitShopView } from "@/src/components/economy/orbit-shop-view";
+import { OrbitLabsView } from "@/src/components/labs/orbit-labs-view";
 import { useOrbitSocialContext } from "@/src/context/orbit-social-context";
 import { requestOrbitSummary } from "@/src/lib/orbit-bot";
 import { DmHomeView } from "@/src/components/social/dm-home-view";
@@ -175,6 +177,8 @@ export function OrbitChatWorkspace() {
                     ? "Shop"
                     : activeView === "QUESTS"
                       ? "Quests"
+                      : activeView === "LABS"
+                        ? "Labs"
                   : activeServer?.name ?? "Unified Space"}
           </p>
           <p className="truncate text-sm font-semibold text-violet-100">
@@ -190,6 +194,8 @@ export function OrbitChatWorkspace() {
                     ? "Orbit Shop"
                     : activeView === "QUESTS"
                       ? "Orbit Missions"
+                      : activeView === "LABS"
+                        ? "Orbit Labs"
                   : activeChannel
                     ? `#${activeChannel.name}`
                     : "No active channel"}
@@ -204,6 +210,8 @@ export function OrbitChatWorkspace() {
                 ? "COMMERCE"
                 : activeView === "QUESTS"
                   ? "MISSIONS"
+                  : activeView === "LABS"
+                    ? "LABS"
               : "SOCIAL"}
         </div>
       </div>
@@ -378,6 +386,8 @@ export function OrbitChatWorkspace() {
         <OrbitQuestsView />
       ) : activeView === "SHOP" ? (
         <OrbitShopView />
+      ) : activeView === "LABS" ? (
+        <OrbitLabsView />
       ) : activeView === "DM_HOME" ? (
         <DmHomeView onOpenFriends={setActiveFriends} />
       ) : activeView === "DM_THREAD" ? (
@@ -423,6 +433,12 @@ export function OrbitChatWorkspace() {
             userId={profile?.id ?? currentMember?.profile_id ?? "guest"}
           />
         </div>
+      ) : activeChannel.type === "FORUM" ? (
+        <OrbitForumView
+          channelId={activeChannel.id}
+          profileId={profile?.id ?? null}
+          serverId={activeServer.id}
+        />
       ) : (
         channelSurface === "TASKS" && isTextServerChannel ? (
           <ChannelTasksPanel
