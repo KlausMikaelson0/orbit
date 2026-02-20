@@ -34,6 +34,13 @@ export type OrbitMarketplaceCategory =
   | "MODERATION"
   | "MONETIZATION"
   | "AI";
+export type OrbitPayoutDestinationType = "BANK" | "CARD" | "WALLET";
+export type OrbitPayoutRequestStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "PAID"
+  | "REJECTED"
+  | "CANCELED";
 
 export interface OrbitProfile {
   id: string;
@@ -522,6 +529,36 @@ export interface OrbitCreatorTip {
   amount_starbits: number;
   note: string | null;
   created_at: string;
+}
+
+export interface OrbitCreatorPayoutAccount {
+  profile_id: string;
+  destination_type: OrbitPayoutDestinationType;
+  provider: string;
+  destination_label: string;
+  payout_handle: string;
+  account_holder_name: string | null;
+  currency: string;
+  is_verified: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitCreatorPayoutRequest {
+  id: string;
+  profile_id: string;
+  destination_type: OrbitPayoutDestinationType;
+  destination_label: string;
+  payout_handle: string;
+  amount_starbits: number;
+  amount_usd_cents: number;
+  status: OrbitPayoutRequestStatus;
+  note: string | null;
+  payout_reference: string | null;
+  processed_by: string | null;
+  processed_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface OrbitMarketplaceApp {

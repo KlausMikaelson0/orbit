@@ -6,11 +6,15 @@ import {
   Bot,
   CalendarClock,
   Coins,
+  CreditCard,
   Cpu,
   Gauge,
+  HandCoins,
+  Landmark,
   ShieldCheck,
   Sparkles,
   Trophy,
+  WalletCards,
   Wrench,
 } from "lucide-react";
 
@@ -24,7 +28,10 @@ import type {
   OrbitAchievementProgress,
   OrbitCallClip,
   OrbitChannelPermission,
+  OrbitCreatorPayoutAccount,
+  OrbitCreatorPayoutRequest,
   OrbitCreatorTier,
+  OrbitPayoutDestinationType,
   OrbitInstalledApp,
   OrbitLeaderboardEntry,
   OrbitMarketplaceApp,
@@ -82,6 +89,17 @@ export function OrbitLabsView() {
   const [tipCreatorId, setTipCreatorId] = useState("");
   const [tipAmount, setTipAmount] = useState("100");
   const [tipNote, setTipNote] = useState("");
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [payoutAccount, setPayoutAccount] = useState<OrbitCreatorPayoutAccount | null>(null);
+  const [payoutRequests, setPayoutRequests] = useState<OrbitCreatorPayoutRequest[]>([]);
+  const [payoutDestinationType, setPayoutDestinationType] =
+    useState<OrbitPayoutDestinationType>("BANK");
+  const [payoutProvider, setPayoutProvider] = useState("MANUAL");
+  const [payoutDestinationLabel, setPayoutDestinationLabel] = useState("");
+  const [payoutHandle, setPayoutHandle] = useState("");
+  const [payoutAccountHolder, setPayoutAccountHolder] = useState("");
+  const [payoutRequestAmount, setPayoutRequestAmount] = useState("500");
+  const [payoutRequestNote, setPayoutRequestNote] = useState("");
 
   const [clipTitle, setClipTitle] = useState("");
   const [clipUrl, setClipUrl] = useState("");
@@ -218,32 +236,90 @@ export function OrbitLabsView() {
       setLeaderboard(normalizedLeaderboard);
 
       if (profile?.id) {
-        const seasonProgressResult = await supabase
-          .from("profile_season_progress")
-          .select("*")
-          .eq("profile_id", profile.id);
+        const [
+          seasonProgressResult,
+          achievementProgressResult,
+          walletResult,
+          payoutAccountResult,
+          payoutRequestsResult,
+        ] = await Promise.all([
+          supabase
+            .from("profile_season_progress")
+            .select("*")
+            .eq("profile_id", profile.id),
+          supabase
+            .from("profile_achievement_progress")
+            .select("*")
+            .eq("profile_id", profile.id),
+          supabase
+            .from("profile_wallets")
+            .select("starbits_balance")
+            .eq("profile_id", profile.id)
+            .maybeSingle(),
+          supabase
+            .from("creator_payout_accounts")
+            .select("*")
+            .eq("profile_id", profile.id)
+            .maybeSingle(),
+          supabase
+            .from("creator_payout_requests")
+            .select("*")
+            .eq("profile_id", profile.id)
+            .order("created_at", { ascending: false })
+            .limit(25),
+        ]);
+
         if (seasonProgressResult.error) {
           setError(seasonProgressResult.error.message);
           setLoading(false);
           return;
         }
-        setSeasonProgressRows((seasonProgressResult.data ?? []) as OrbitSeasonProgress[]);
-
-        const achievementProgressResult = await supabase
-          .from("profile_achievement_progress")
-          .select("*")
-          .eq("profile_id", profile.id);
         if (achievementProgressResult.error) {
           setError(achievementProgressResult.error.message);
           setLoading(false);
           return;
         }
+        if (walletResult.error) {
+          setError(walletResult.error.message);
+          setLoading(false);
+          return;
+        }
+        if (payoutAccountResult.error) {
+          setError(payoutAccountResult.error.message);
+          setLoading(false);
+          return;
+        }
+        if (payoutRequestsResult.error) {
+          setError(payoutRequestsResult.error.message);
+          setLoading(false);
+          return;
+        }
+
+        setSeasonProgressRows((seasonProgressResult.data ?? []) as OrbitSeasonProgress[]);
         setAchievementProgressRows(
           (achievementProgressResult.data ?? []) as OrbitAchievementProgress[],
         );
+        setWalletBalance(
+          typeof walletResult.data?.starbits_balance === "number"
+            ? walletResult.data.starbits_balance
+            : 0,
+        );
+        const nextPayoutAccount = (payoutAccountResult.data ?? null) as OrbitCreatorPayoutAccount | null;
+        setPayoutAccount(nextPayoutAccount);
+        setPayoutRequests((payoutRequestsResult.data ?? []) as OrbitCreatorPayoutRequest[]);
+        if (nextPayoutAccount) {
+          setPayoutDestinationType(nextPayoutAccount.destination_type);
+          setPayoutProvider(nextPayoutAccount.provider);
+          setPayoutDestinationLabel(nextPayoutAccount.destination_label);
+          setPayoutHandle(nextPayoutAccount.payout_handle);
+          setPayoutAccountHolder(nextPayoutAccount.account_holder_name ?? "");
+        }
       } else {
         setSeasonProgressRows([]);
         setAchievementProgressRows([]);
+        setWalletBalance(0);
+        setPayoutAccount(null);
+        setPayoutRequests([]);
       }
 
       if (!targetServerId) {
@@ -578,6 +654,103 @@ export function OrbitLabsView() {
 
     setTipNote("");
     setSuccess("Tip sent.");
+    await fetchLabsState(scopeServerId);
+    setWorkingKey(null);
+  }
+
+  async function savePayoutAccount() {
+    if (!profile?.id) {
+      return;
+    }
+    if (!payoutDestinationLabel.trim() || !payoutHandle.trim()) {
+      setError("Destination label and payout handle are required.");
+      return;
+    }
+
+    setWorkingKey("payout:account");
+    setError(null);
+    setSuccess(null);
+
+    const { data, error: payoutError } = await supabase.rpc("orbit_upsert_payout_account", {
+      destination_type: payoutDestinationType,
+      provider: payoutProvider.trim() || "MANUAL",
+      destination_label: payoutDestinationLabel.trim(),
+      payout_handle: payoutHandle.trim(),
+      account_holder_name: payoutAccountHolder.trim() || null,
+      currency_code: "USD",
+    });
+
+    if (payoutError) {
+      setError(payoutError.message);
+      setWorkingKey(null);
+      return;
+    }
+
+    const accountRow = (Array.isArray(data) ? data[0] : data) as OrbitCreatorPayoutAccount | null;
+    if (accountRow) {
+      setPayoutAccount(accountRow);
+    }
+    setSuccess("Payout destination saved.");
+    await fetchLabsState(scopeServerId);
+    setWorkingKey(null);
+  }
+
+  async function requestPayout() {
+    if (!payoutAccount) {
+      setError("Set payout destination first.");
+      return;
+    }
+
+    const parsedAmount = Number.parseInt(payoutRequestAmount, 10);
+    if (!Number.isFinite(parsedAmount) || parsedAmount < 100) {
+      setError("Minimum payout request is 100 Starbits.");
+      return;
+    }
+
+    setWorkingKey("payout:request");
+    setError(null);
+    setSuccess(null);
+
+    const { data, error: requestError } = await supabase.rpc("orbit_request_payout", {
+      request_amount: parsedAmount,
+      note: payoutRequestNote.trim() || null,
+    });
+
+    if (requestError) {
+      setError(requestError.message);
+      setWorkingKey(null);
+      return;
+    }
+
+    const row = (Array.isArray(data) ? data[0] : data) as
+      | { amount_usd_cents?: number; amount_starbits?: number }
+      | null;
+    const cents = typeof row?.amount_usd_cents === "number" ? row.amount_usd_cents : parsedAmount;
+    const starbits = typeof row?.amount_starbits === "number" ? row.amount_starbits : parsedAmount;
+    setPayoutRequestNote("");
+    setSuccess(
+      `Payout requested: ${starbits.toLocaleString()} Starbits ($${(cents / 100).toFixed(2)}).`,
+    );
+    await fetchLabsState(scopeServerId);
+    setWorkingKey(null);
+  }
+
+  async function cancelPayoutRequest(requestId: string) {
+    setWorkingKey(`payout:cancel:${requestId}`);
+    setError(null);
+    setSuccess(null);
+
+    const { error: cancelError } = await supabase.rpc("orbit_cancel_payout_request", {
+      request_id: requestId,
+    });
+
+    if (cancelError) {
+      setError(cancelError.message);
+      setWorkingKey(null);
+      return;
+    }
+
+    setSuccess("Payout request canceled and funds returned to wallet.");
     await fetchLabsState(scopeServerId);
     setWorkingKey(null);
   }
@@ -1071,6 +1244,136 @@ export function OrbitLabsView() {
                 </p>
               </div>
             ))}
+          </div>
+
+          <div className="space-y-2 rounded-xl border border-white/10 bg-black/30 p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-wide text-zinc-400">Payout destination</p>
+              <span className="text-[11px] text-zinc-400">
+                Balance: {walletBalance.toLocaleString()} Starbits
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {(
+                [
+                  { value: "BANK" as const, label: "Bank", icon: Landmark },
+                  { value: "CARD" as const, label: "Card", icon: CreditCard },
+                  { value: "WALLET" as const, label: "Wallet", icon: WalletCards },
+                ] as const
+              ).map((item) => (
+                <Button
+                  className="h-8 rounded-lg"
+                  key={item.value}
+                  onClick={() => setPayoutDestinationType(item.value)}
+                  size="sm"
+                  type="button"
+                  variant={payoutDestinationType === item.value ? "default" : "secondary"}
+                >
+                  <item.icon className="h-3.5 w-3.5" />
+                  {item.label}
+                </Button>
+              ))}
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              <Input
+                onChange={(event) => setPayoutProvider(event.target.value)}
+                placeholder="provider (BANK/WISE/PAYPAL)"
+                value={payoutProvider}
+              />
+              <Input
+                onChange={(event) => setPayoutAccountHolder(event.target.value)}
+                placeholder="account holder name"
+                value={payoutAccountHolder}
+              />
+            </div>
+            <Input
+              onChange={(event) => setPayoutDestinationLabel(event.target.value)}
+              placeholder="destination label (My Bank Account)"
+              value={payoutDestinationLabel}
+            />
+            <Input
+              onChange={(event) => setPayoutHandle(event.target.value)}
+              placeholder="IBAN / card token / wallet handle"
+              value={payoutHandle}
+            />
+            <Button
+              className="rounded-lg"
+              disabled={!profile || workingKey === "payout:account"}
+              onClick={() => void savePayoutAccount()}
+              type="button"
+            >
+              Save Payout Destination
+            </Button>
+            <p className="text-[11px] text-zinc-500">
+              Current status: {payoutAccount?.is_verified ? "Verified" : "Pending verification"}
+            </p>
+          </div>
+
+          <div className="space-y-2 rounded-xl border border-white/10 bg-black/30 p-3">
+            <p className="text-xs uppercase tracking-wide text-zinc-400">Withdraw earnings</p>
+            <div className="grid gap-2 md:grid-cols-2">
+              <Input
+                min={100}
+                onChange={(event) => setPayoutRequestAmount(event.target.value)}
+                placeholder="withdraw starbits"
+                type="number"
+                value={payoutRequestAmount}
+              />
+              <Input disabled readOnly value="USD (1 Starbit = $0.01)" />
+            </div>
+            <Textarea
+              className="min-h-16 rounded-xl border-white/15 bg-black/35"
+              onChange={(event) => setPayoutRequestNote(event.target.value)}
+              placeholder="optional note for payout team"
+              value={payoutRequestNote}
+            />
+            <Button
+              className="rounded-lg"
+              disabled={!payoutAccount || workingKey === "payout:request"}
+              onClick={() => void requestPayout()}
+              type="button"
+              variant="secondary"
+            >
+              <HandCoins className="h-4 w-4" />
+              Request Payout
+            </Button>
+            <div className="space-y-1">
+              {payoutRequests.map((request) => (
+                <div
+                  className="rounded-lg border border-white/10 bg-black/35 p-2 text-xs text-zinc-300"
+                  key={request.id}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-semibold text-zinc-100">
+                      {request.amount_starbits.toLocaleString()} Starbits · $
+                      {(request.amount_usd_cents / 100).toFixed(2)}
+                    </p>
+                    <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px]">
+                      {request.status}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-zinc-400">
+                    {request.destination_type} · {request.destination_label}
+                  </p>
+                  <p className="text-zinc-500">{new Date(request.created_at).toLocaleString()}</p>
+                  {request.status === "PENDING" ? (
+                    <Button
+                      className="mt-2 h-7 rounded-lg"
+                      disabled={workingKey === `payout:cancel:${request.id}`}
+                      onClick={() => void cancelPayoutRequest(request.id)}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      Cancel Request
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
+              {!payoutRequests.length ? (
+                <p className="text-[11px] text-zinc-500">No payout requests yet.</p>
+              ) : null}
+            </div>
           </div>
         </section>
 

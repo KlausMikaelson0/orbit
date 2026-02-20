@@ -65,6 +65,12 @@ Orbit is a realtime productivity-social platform built in phases:
 - **Orbit Vault store** with purchasable cosmetic inventory
 - **Background cosmetics** users can buy, own, and equip per profile
 
+### Creator Payouts (Phase 10)
+- **Payout destination setup** per creator profile (bank/card/wallet target)
+- **Withdrawal requests** from Starbits balance with request lifecycle tracking
+- **Cancelable pending requests** with automatic Starbits refund
+- **Wallet ledger entries** for payout request/cancel events
+
 ### Quest Monetization (Phase 8)
 - **Orbit Missions**: repeatable quests for visit/watch/play/social actions
 - **Sponsored mission fields** (`sponsor_name`, `sponsor_url`) for ad-backed campaigns
@@ -176,6 +182,7 @@ Run migrations in order from `supabase/migrations/`:
 6. `20260220_orbit_phase7_monetization.sql`
 7. `20260220_orbit_phase8_quests.sql`
 8. `20260220_orbit_phase9_supercharge.sql`
+9. `20260221_orbit_phase10_creator_payouts.sql`
 
 Phase 5 adds:
 - `orbit_bots` (per-server bot metadata)
@@ -204,6 +211,11 @@ Phase 9 adds:
 - AI server settings, app marketplace install model, creator tiers and tipping
 - Season pass + achievements + leaderboard progression RPCs
 - Profile performance mode switch for lower-end devices
+
+Phase 10 adds:
+- `creator_payout_accounts` and `creator_payout_requests`
+- RPCs: `orbit_upsert_payout_account`, `orbit_request_payout`, `orbit_cancel_payout_request`
+- Creator withdrawal workflow with wallet-safe debit/refund ledger events
 
 Also make sure Supabase Auth providers include:
 - Email/Password
@@ -313,6 +325,7 @@ This runs lint/build before `vercel --prod`.
 - [ ] All migrations applied through Phase 7
 - [ ] All migrations applied through Phase 8
 - [ ] All migrations applied through Phase 9
+- [ ] All migrations applied through Phase 10
 - [ ] Supabase Auth providers configured (Email/Password + Google + MFA)
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` added in Vercel
 - [ ] LiveKit keys configured and `/api/livekit/token` verified
