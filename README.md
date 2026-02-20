@@ -9,6 +9,7 @@ Orbit is a realtime productivity-social platform built in phases:
 - **Phase 6**: Mobile gestures, developer webhook API, onboarding + analytics, security hardening
 - **Phase 7**: Orbit Pulse subscriptions, Starbits wallet economy, Orbit Vault cosmetics store
 - **Phase 8**: Orbit Missions quest engine for sponsored engagement revenue
+- **Phase 9**: Orbit Labs supercharge (forum channels, templates, permissions, events, marketplace, creator tools, season pass)
 
 ## Stack
 
@@ -174,6 +175,7 @@ Run migrations in order from `supabase/migrations/`:
 5. `20260219_orbit_phase6_growth.sql`
 6. `20260220_orbit_phase7_monetization.sql`
 7. `20260220_orbit_phase8_quests.sql`
+8. `20260220_orbit_phase9_supercharge.sql`
 
 Phase 5 adds:
 - `orbit_bots` (per-server bot metadata)
@@ -195,6 +197,13 @@ Phase 8 adds:
 - `orbit_quests`, `profile_quest_progress`, `orbit_quest_action_events`
 - RPCs: `orbit_log_quest_action`, `orbit_claim_quest_reward`
 - seeded mission templates for visit, watch, play, and social quest loops
+
+Phase 9 adds:
+- Forum channels (`channel_type = FORUM`) + `forum_tags`, `forum_posts`, `forum_replies`
+- Server templates, channel permission matrix, stage/live events, call clips
+- AI server settings, app marketplace install model, creator tiers and tipping
+- Season pass + achievements + leaderboard progression RPCs
+- Profile performance mode switch for lower-end devices
 
 Also make sure Supabase Auth providers include:
 - Email/Password
@@ -303,6 +312,7 @@ This runs lint/build before `vercel --prod`.
 
 - [ ] All migrations applied through Phase 7
 - [ ] All migrations applied through Phase 8
+- [ ] All migrations applied through Phase 9
 - [ ] Supabase Auth providers configured (Email/Password + Google + MFA)
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` added in Vercel
 - [ ] LiveKit keys configured and `/api/livekit/token` verified
