@@ -21,7 +21,13 @@ import { OrbitLanguagePicker } from "@/src/components/i18n/orbit-language-picker
 import { useModal } from "@/src/hooks/use-modal";
 import { useOrbitLocale } from "@/src/hooks/use-orbit-locale";
 import { useOrbitRuntime } from "@/src/hooks/use-orbit-runtime";
-import { getOrbitSupabaseClient } from "@/src/lib/supabase-browser";
+import {
+  ORBIT_LOCAL_PROFILE,
+  getOrbitLocalQuestProgress,
+  getOrbitLocalQuests,
+  getOrbitLocalStoreItems,
+} from "@/src/lib/orbit-local-data";
+import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type {
   ChannelType,
@@ -161,6 +167,7 @@ export function OrbitModals({
   joinServerByInvite,
 }: OrbitModalsProps) {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
+  const isLocalMode = !isSupabaseReady;
   const { isOpen, type, data, onClose } = useModal();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -273,6 +280,14 @@ export function OrbitModals({
     setLoadingMfa(true);
     setMfaError(null);
 
+    if (isLocalMode) {
+      setTotpFactors([]);
+      setAalLevel("local");
+      setPendingTotp(null);
+      setLoadingMfa(false);
+      return;
+    }
+
     const [factorsResult, aalResult] = await Promise.all([
       supabase.auth.mfa.listFactors(),
       supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
@@ -302,11 +317,55 @@ export function OrbitModals({
     );
     setAalLevel(aalResult.data?.currentLevel ?? null);
     setLoadingMfa(false);
-  }, [supabase]);
+  }, [isLocalMode, supabase]);
 
   const fetchCommerceState = useCallback(async () => {
     setLoadingCommerce(true);
     setCommerceError(null);
+
+    if (isLocalMode) {
+      const now = new Date().toISOString();
+      const localProfileId = profile?.id ?? ORBIT_LOCAL_PROFILE.id;
+      setSubscription((current) => {
+        if (current) {
+          return current;
+        }
+        return {
+          profile_id: localProfileId,
+          tier: "FREE",
+          status: "ACTIVE",
+          renews_at: null,
+          created_at: now,
+          updated_at: now,
+        } satisfies OrbitProfileSubscription;
+      });
+      setWallet((current) => {
+        if (current) {
+          return current;
+        }
+        return {
+          profile_id: localProfileId,
+          starbits_balance: 1450,
+          lifetime_earned: 1450,
+          last_daily_claim_at: null,
+          created_at: now,
+          updated_at: now,
+        } satisfies OrbitProfileWallet;
+      });
+      setStoreItems(getOrbitLocalStoreItems());
+      setInventory((current) => {
+        const activeBackgroundSlug = profile?.active_background_slug;
+        if (!activeBackgroundSlug) {
+          return current;
+        }
+        if (current.some((row) => row.item_slug === activeBackgroundSlug)) {
+          return current;
+        }
+        return [...current, { item_slug: activeBackgroundSlug, purchased_at: now }];
+      });
+      setLoadingCommerce(false);
+      return;
+    }
 
     const {
       data: { user },
@@ -372,11 +431,20 @@ export function OrbitModals({
     setStoreItems((storeResult.data ?? []) as OrbitStoreItem[]);
     setInventory((inventoryResult.data ?? []) as OrbitInventoryItem[]);
     setLoadingCommerce(false);
-  }, [supabase]);
+  }, [isLocalMode, profile?.active_background_slug, profile?.id, supabase]);
 
   const fetchQuestState = useCallback(async () => {
     setLoadingQuests(true);
     setQuestError(null);
+
+    if (isLocalMode) {
+      setQuests(getOrbitLocalQuests());
+      setQuestProgressRows((currentRows) =>
+        currentRows.length ? currentRows : getOrbitLocalQuestProgress(),
+      );
+      setLoadingQuests(false);
+      return;
+    }
 
     const {
       data: { user },
@@ -416,12 +484,53 @@ export function OrbitModals({
     setQuests((questsResult.data ?? []) as OrbitQuest[]);
     setQuestProgressRows((progressResult.data ?? []) as OrbitQuestProgress[]);
     setLoadingQuests(false);
-  }, [supabase]);
+  }, [isLocalMode, supabase]);
 
   async function progressQuest(quest: OrbitQuest) {
     setQuestActionKey(`progress:${quest.slug}`);
     setQuestError(null);
     setQuestSuccess(null);
+
+    if (isLocalMode) {
+      const now = new Date().toISOString();
+      setQuestProgressRows((currentRows) => {
+        const existing = currentRows.find((row) => row.quest_id === quest.id);
+        if (!existing) {
+          const progressCount = 1;
+          return [
+            ...currentRows,
+            {
+              id: `local-quest-progress-${crypto.randomUUID().slice(0, 8)}`,
+              profile_id: profile?.id ?? ORBIT_LOCAL_PROFILE.id,
+              quest_id: quest.id,
+              progress_count: progressCount,
+              target_count_snapshot: quest.target_count,
+              completed_at: progressCount >= quest.target_count ? now : null,
+              last_action_at: now,
+              last_claimed_at: null,
+              created_at: now,
+              updated_at: now,
+            },
+          ];
+        }
+        const progressCount = Math.min(existing.target_count_snapshot, existing.progress_count + 1);
+        return currentRows.map((row) =>
+          row.id === existing.id
+            ? {
+                ...row,
+                progress_count: progressCount,
+                completed_at:
+                  progressCount >= existing.target_count_snapshot ? row.completed_at ?? now : null,
+                last_action_at: now,
+                updated_at: now,
+              }
+            : row,
+        );
+      });
+      setQuestSuccess(`${quest.title} progress updated.`);
+      setQuestActionKey(null);
+      return;
+    }
 
     const { error } = await supabase.rpc("orbit_log_quest_action", {
       target_slug: quest.slug,
@@ -445,6 +554,46 @@ export function OrbitModals({
     setQuestActionKey(`claim:${quest.slug}`);
     setQuestError(null);
     setQuestSuccess(null);
+
+    if (isLocalMode) {
+      const row = questProgressByQuestId[quest.id];
+      if (!row?.completed_at) {
+        setQuestError("Complete the mission before claiming reward.");
+        setQuestActionKey(null);
+        return;
+      }
+      if (row.last_claimed_at) {
+        setQuestError("Mission reward already claimed for this cycle.");
+        setQuestActionKey(null);
+        return;
+      }
+
+      const now = new Date().toISOString();
+      setQuestProgressRows((currentRows) =>
+        currentRows.map((item) =>
+          item.id === row.id
+            ? {
+                ...item,
+                last_claimed_at: now,
+                updated_at: now,
+              }
+            : item,
+        ),
+      );
+      setWallet((currentWallet) =>
+        currentWallet
+          ? {
+              ...currentWallet,
+              starbits_balance: currentWallet.starbits_balance + quest.reward_starbits,
+              lifetime_earned: currentWallet.lifetime_earned + quest.reward_starbits,
+              updated_at: now,
+            }
+          : currentWallet,
+      );
+      setQuestSuccess(`Mission claimed: +${quest.reward_starbits} Starbits.`);
+      setQuestActionKey(null);
+      return;
+    }
 
     const { data, error } = await supabase.rpc("orbit_claim_quest_reward", {
       target_slug: quest.slug,
@@ -470,6 +619,25 @@ export function OrbitModals({
   async function switchSubscriptionTier(nextTier: OrbitSubscriptionTier) {
     const currentTier = subscription?.tier ?? "FREE";
     if (nextTier === currentTier) {
+      return;
+    }
+
+    if (isLocalMode) {
+      const now = new Date().toISOString();
+      const renewsAt = nextTier === "FREE" ? null : subscription?.renews_at ?? null;
+      setSwitchingTier(nextTier);
+      setCommerceError(null);
+      setCommerceSuccess(null);
+      setSubscription((current) => ({
+        profile_id: current?.profile_id ?? profile?.id ?? ORBIT_LOCAL_PROFILE.id,
+        tier: nextTier,
+        status: "ACTIVE",
+        renews_at: renewsAt,
+        created_at: current?.created_at ?? now,
+        updated_at: now,
+      }));
+      setCommerceSuccess(`Plan updated: ${formatTierLabel(nextTier)}.`);
+      setSwitchingTier(null);
       return;
     }
 
@@ -517,6 +685,43 @@ export function OrbitModals({
     setCommerceError(null);
     setCommerceSuccess(null);
 
+    if (isLocalMode) {
+      if (!dailyClaimWindow.canClaim) {
+        if (dailyClaimWindow.nextClaimAt) {
+          setCommerceSuccess(
+            `Already claimed. Next claim available at ${dailyClaimWindow.nextClaimAt.toLocaleString()}.`,
+          );
+        } else {
+          setCommerceSuccess("Daily reward is on cooldown.");
+        }
+        setClaimingDaily(false);
+        return;
+      }
+
+      const now = new Date().toISOString();
+      setWallet((currentWallet) =>
+        currentWallet
+          ? {
+              ...currentWallet,
+              starbits_balance: currentWallet.starbits_balance + DAILY_STARBITS_REWARD,
+              lifetime_earned: currentWallet.lifetime_earned + DAILY_STARBITS_REWARD,
+              last_daily_claim_at: now,
+              updated_at: now,
+            }
+          : {
+              profile_id: profile?.id ?? ORBIT_LOCAL_PROFILE.id,
+              starbits_balance: DAILY_STARBITS_REWARD,
+              lifetime_earned: DAILY_STARBITS_REWARD,
+              last_daily_claim_at: now,
+              created_at: now,
+              updated_at: now,
+            },
+      );
+      setCommerceSuccess(`Daily reward claimed: +${DAILY_STARBITS_REWARD} Starbits.`);
+      setClaimingDaily(false);
+      return;
+    }
+
     const { data, error } = await supabase.rpc("claim_daily_starbits", {
       reward: DAILY_STARBITS_REWARD,
     });
@@ -551,6 +756,44 @@ export function OrbitModals({
     setCommerceError(null);
     setCommerceSuccess(null);
 
+    if (isLocalMode) {
+      const item = storeItems.find((storeItem) => storeItem.slug === itemSlug);
+      if (!item) {
+        setCommerceError("Store item is unavailable.");
+        setStoreActionKey(null);
+        return;
+      }
+      if (!wallet) {
+        setCommerceError("Wallet is unavailable.");
+        setStoreActionKey(null);
+        return;
+      }
+      if (ownedItemSlugs.has(itemSlug)) {
+        setCommerceSuccess(`${item.name} is already owned.`);
+        setStoreActionKey(null);
+        return;
+      }
+      if (wallet.starbits_balance < item.price_starbits) {
+        setCommerceError("Not enough Starbits for this purchase.");
+        setStoreActionKey(null);
+        return;
+      }
+
+      const now = new Date().toISOString();
+      setWallet({
+        ...wallet,
+        starbits_balance: wallet.starbits_balance - item.price_starbits,
+        updated_at: now,
+      });
+      setInventory((currentRows) => [
+        ...currentRows,
+        { item_slug: item.slug, purchased_at: now },
+      ]);
+      setCommerceSuccess(`${item.name} purchased successfully.`);
+      setStoreActionKey(null);
+      return;
+    }
+
     const { data, error } = await supabase.rpc("buy_store_item", {
       target_slug: itemSlug,
     });
@@ -578,6 +821,22 @@ export function OrbitModals({
     setStoreActionKey(`equip:${itemSlug ?? "default"}`);
     setCommerceError(null);
     setCommerceSuccess(null);
+
+    if (isLocalMode) {
+      if (profile) {
+        const selectedItem = itemSlug
+          ? storeItems.find((item) => item.slug === itemSlug)
+          : null;
+        setProfile({
+          ...(profile as OrbitProfile),
+          active_background_slug: itemSlug,
+          active_background_css: selectedItem?.css_background ?? null,
+        });
+      }
+      setCommerceSuccess(itemSlug ? "Background equipped." : "Default background restored.");
+      setStoreActionKey(null);
+      return;
+    }
 
     const { error } = await supabase.rpc("set_active_store_background", {
       target_slug: itemSlug,
@@ -613,6 +872,18 @@ export function OrbitModals({
     setCommerceError(null);
     setCommerceSuccess(null);
 
+    if (isLocalMode) {
+      setProfile({
+        ...(profile as OrbitProfile),
+        performance_mode: nextValue,
+      });
+      setCommerceSuccess(
+        nextValue ? "Ultra Performance Mode enabled." : "Ultra Performance Mode disabled.",
+      );
+      setSavingPerformanceMode(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from("profiles")
       .update({ performance_mode: nextValue })
@@ -643,6 +914,12 @@ export function OrbitModals({
   }, [fetchCommerceState, fetchMfaState, fetchQuestState, settingsOpen]);
 
   async function enrollTotp() {
+    if (isLocalMode) {
+      setMfaError("2FA requires cloud auth setup and a signed-in account.");
+      setMfaSuccess(null);
+      return;
+    }
+
     setMfaError(null);
     setMfaSuccess(null);
     const { data, error } = await supabase.auth.mfa.enroll({
@@ -664,6 +941,12 @@ export function OrbitModals({
   }
 
   async function verifyTotp() {
+    if (isLocalMode) {
+      setMfaError("2FA verification is unavailable in browser local mode.");
+      setMfaSuccess(null);
+      return;
+    }
+
     if (!pendingTotp || !mfaCode.trim()) {
       setMfaError("Enter a valid 6-digit authenticator code.");
       return;
@@ -688,6 +971,12 @@ export function OrbitModals({
   }
 
   async function removeTotpFactor(factorId: string) {
+    if (isLocalMode) {
+      setMfaError("2FA factor removal requires cloud auth mode.");
+      setMfaSuccess(null);
+      return;
+    }
+
     setMfaError(null);
     setMfaSuccess(null);
     const { error } = await supabase.auth.mfa.unenroll({ factorId });
@@ -1404,6 +1693,7 @@ export function OrbitModals({
                     <div className="flex flex-wrap gap-2">
                       <Button
                         className="rounded-full"
+                        disabled={isLocalMode}
                         onClick={() => void enrollTotp()}
                         size="sm"
                         type="button"
