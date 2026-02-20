@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
 
+export const dynamic = "force-static";
+
 function resolveSiteUrl() {
   const rawValue =
     process.env.NEXT_PUBLIC_APP_URL ??
