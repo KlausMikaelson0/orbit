@@ -462,7 +462,6 @@ export function ChatInput({
         fileUrl = await uploadAttachment(currentAttachment);
       }
     } catch (uploadError) {
-      removeMessage(conversationKey, tempId);
       setError(
         uploadError instanceof Error
           ? uploadError.message

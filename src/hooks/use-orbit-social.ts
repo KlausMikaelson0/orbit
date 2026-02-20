@@ -321,7 +321,7 @@ export function useOrbitSocial(user: User | null): UseOrbitSocialResult {
   }, [fetchDmConversations, fetchRelationships, supabase, user]);
 
   const sendCallSignal = useCallback(
-    async (event: string, payload: Record<string, unknown>): Promise<OrbitSocialResult> => {
+    async (event: string, payload: object): Promise<OrbitSocialResult> => {
       const channel = callSignalChannelRef.current;
       if (!channel) {
         return { error: "Call signaling channel is not ready." };
