@@ -198,7 +198,7 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
       return;
     }
     if (!isSupabaseReady) {
-      router.replace("/");
+      router.replace("/demo");
     }
   }, [loading, router]);
 
@@ -236,7 +236,7 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             <Button asChild className="rounded-full" size="sm" variant="secondary">
-              <Link href="/">{t("landing.openInBrowser")}</Link>
+              <Link href="/demo">{t("landing.openInBrowser")}</Link>
             </Button>
             <Button asChild className="rounded-full" size="sm" variant="ghost">
               <Link href="/auth">{t("dashboard.goToAuth")}</Link>
