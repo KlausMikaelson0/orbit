@@ -336,10 +336,7 @@ export function OrbitModals({
     setCommerceError(null);
     setCommerceSuccess(null);
 
-    const renewsAt =
-      nextTier === "FREE"
-        ? null
-        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const renewsAt = nextTier === "FREE" ? null : subscription?.renews_at ?? null;
 
     const { data, error } = await supabase
       .from("profile_subscriptions")
