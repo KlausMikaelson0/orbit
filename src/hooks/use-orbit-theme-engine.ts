@@ -21,6 +21,7 @@ function isThemePreset(value: string): value is OrbitThemePreset {
 }
 
 export function useOrbitThemeEngine() {
+  const profile = useOrbitNavStore((state) => state.profile);
   const themePreset = useOrbitNavStore((state) => state.themePreset);
   const customThemeCss = useOrbitNavStore((state) => state.customThemeCss);
   const setThemePreset = useOrbitNavStore((state) => state.setThemePreset);
@@ -73,4 +74,14 @@ export function useOrbitThemeEngine() {
       document.head.appendChild(styleNode);
     }
   }, [customThemeCss, themePreset]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    document.documentElement.dataset.orbitPerformance = profile?.performance_mode
+      ? "on"
+      : "off";
+  }, [profile?.performance_mode]);
 }

@@ -1,6 +1,17 @@
 "use client";
 
-import { FileText, Hash, Mic, Plus, ScrollText, ShoppingBag, Users, Video } from "lucide-react";
+import {
+  FileText,
+  FlaskConical,
+  Hash,
+  MessagesSquare,
+  Mic,
+  Plus,
+  ScrollText,
+  ShoppingBag,
+  Users,
+  Video,
+} from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 
 import { Button } from "@/components/ui/button";
@@ -13,11 +24,13 @@ const channelTypeIcon: Record<ChannelType, typeof Hash> = {
   TEXT: Hash,
   AUDIO: Mic,
   VIDEO: Video,
+  FORUM: MessagesSquare,
 };
 
 function channelTypeLabel(type: ChannelType) {
   if (type === "TEXT") return "Text";
   if (type === "AUDIO") return "Audio";
+  if (type === "FORUM") return "Forum";
   return "Video";
 }
 
@@ -41,6 +54,7 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
     setActiveFriends,
     setActiveQuests,
     setActiveShop,
+    setActiveLabs,
     setActiveDmThread,
   } = useOrbitNavStore(
     useShallow((state) => ({
@@ -56,6 +70,7 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
       setActiveFriends: state.setActiveFriends,
       setActiveQuests: state.setActiveQuests,
       setActiveShop: state.setActiveShop,
+      setActiveLabs: state.setActiveLabs,
       setActiveDmThread: state.setActiveDmThread,
     })),
   );
@@ -68,7 +83,8 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
     activeView === "DM_THREAD" ||
     activeView === "FRIENDS" ||
     activeView === "SHOP" ||
-    activeView === "QUESTS";
+    activeView === "QUESTS" ||
+    activeView === "LABS";
 
   return (
     <aside
@@ -144,6 +160,18 @@ export function ChannelSidebar({ mobile = false, onNavigate }: ChannelSidebarPro
             >
               <ScrollText className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Quests</span>
+            </Button>
+            <Button
+              className="rounded-full px-2.5"
+              onClick={() => {
+                setActiveLabs();
+                onNavigate?.();
+              }}
+              size="sm"
+              variant={activeView === "LABS" ? "default" : "secondary"}
+            >
+              <FlaskConical className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Labs</span>
             </Button>
           </div>
         )}

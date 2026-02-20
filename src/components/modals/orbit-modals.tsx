@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { Check, Loader2, Sparkles, Store, Wallet } from "lucide-react";
+import { Check, Gauge, Loader2, Sparkles, Store, Wallet } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ import type {
   OrbitProfileWallet,
   OrbitStoreItem,
   OrbitSubscriptionTier,
+  OrbitServerTemplateKey,
 } from "@/src/types/orbit";
 
 interface ActionResult {
@@ -45,6 +46,7 @@ interface OrbitModalsProps {
   createServer: (values: {
     name: string;
     imageUrl?: string;
+    templateKey?: OrbitServerTemplateKey | null;
   }) => Promise<ActionResult>;
   createChannel: (values: {
     serverId: string;
@@ -164,6 +166,7 @@ export function OrbitModals({
   const [error, setError] = useState<string | null>(null);
   const [serverName, setServerName] = useState("");
   const [serverImage, setServerImage] = useState("");
+  const [serverTemplate, setServerTemplate] = useState<OrbitServerTemplateKey>("community");
   const [channelName, setChannelName] = useState("");
   const [channelType, setChannelType] = useState<ChannelType>("TEXT");
   const [inviteCode, setInviteCode] = useState("");
@@ -205,6 +208,7 @@ export function OrbitModals({
   const [commerceSuccess, setCommerceSuccess] = useState<string | null>(null);
   const [switchingTier, setSwitchingTier] = useState<OrbitSubscriptionTier | null>(null);
   const [claimingDaily, setClaimingDaily] = useState(false);
+  const [savingPerformanceMode, setSavingPerformanceMode] = useState(false);
   const [storeActionKey, setStoreActionKey] = useState<string | null>(null);
   const [questActionKey, setQuestActionKey] = useState<string | null>(null);
   const [subscription, setSubscription] = useState<OrbitProfileSubscription | null>(null);
@@ -245,6 +249,7 @@ export function OrbitModals({
     setSubmitting(false);
     setServerName("");
     setServerImage("");
+    setServerTemplate("community");
     setChannelName("");
     setChannelType("TEXT");
     setInviteCode("");
@@ -256,6 +261,7 @@ export function OrbitModals({
     setCommerceSuccess(null);
     setSwitchingTier(null);
     setClaimingDaily(false);
+    setSavingPerformanceMode(false);
     setStoreActionKey(null);
     setQuestActionKey(null);
     setQuestError(null);
@@ -598,6 +604,35 @@ export function OrbitModals({
     setStoreActionKey(null);
   }
 
+  async function togglePerformanceMode(nextValue: boolean) {
+    if (!profile?.id) {
+      return;
+    }
+
+    setSavingPerformanceMode(true);
+    setCommerceError(null);
+    setCommerceSuccess(null);
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({ performance_mode: nextValue })
+      .eq("id", profile.id)
+      .select("*")
+      .single();
+
+    if (error || !data) {
+      setCommerceError(error?.message ?? "Unable to update performance mode.");
+      setSavingPerformanceMode(false);
+      return;
+    }
+
+    setProfile(data as OrbitProfile);
+    setCommerceSuccess(
+      nextValue ? "Ultra Performance Mode enabled." : "Ultra Performance Mode disabled.",
+    );
+    setSavingPerformanceMode(false);
+  }
+
   useEffect(() => {
     if (!settingsOpen) {
       return;
@@ -676,6 +711,7 @@ export function OrbitModals({
     const result = await createServer({
       name: serverName,
       imageUrl: serverImage,
+      templateKey: serverTemplate,
     });
     if (result.error) {
       setError(result.error);
@@ -747,6 +783,30 @@ export function OrbitModals({
                 placeholder="Image URL (optional)"
                 value={serverImage}
               />
+              <div className="space-y-2">
+                <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
+                  Starter template
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {(
+                    [
+                      { key: "community", label: "Community" },
+                      { key: "gaming", label: "Gaming" },
+                      { key: "startup", label: "Startup" },
+                    ] as Array<{ key: OrbitServerTemplateKey; label: string }>
+                  ).map((template) => (
+                    <Button
+                      className="rounded-lg"
+                      key={template.key}
+                      onClick={() => setServerTemplate(template.key)}
+                      type="button"
+                      variant={serverTemplate === template.key ? "default" : "secondary"}
+                    >
+                      {template.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
               {error ? (
                 <p className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
                   {error}
@@ -781,8 +841,8 @@ export function OrbitModals({
                 placeholder="Channel name"
                 value={channelName}
               />
-              <div className="grid grid-cols-3 gap-2">
-                {(["TEXT", "AUDIO", "VIDEO"] as ChannelType[]).map((typeOption) => (
+              <div className="grid grid-cols-4 gap-2">
+                {(["TEXT", "AUDIO", "VIDEO", "FORUM"] as ChannelType[]).map((typeOption) => (
                   <Button
                     className="rounded-lg"
                     key={typeOption}
@@ -943,6 +1003,30 @@ export function OrbitModals({
                     ? "Orbit desktop mode is active with tray persistence."
                     : "Install Orbit from the landing page to unlock desktop runtime."}
                 </p>
+              </section>
+
+              <section className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
+                      Ultra Performance Mode
+                    </p>
+                    <p className="text-sm text-zinc-200">
+                      Reduce blur and heavy effects for smoother performance on low-end devices.
+                    </p>
+                  </div>
+                  <Button
+                    className="rounded-full"
+                    disabled={!profile || savingPerformanceMode}
+                    onClick={() => void togglePerformanceMode(!Boolean(profile?.performance_mode))}
+                    size="sm"
+                    type="button"
+                    variant={profile?.performance_mode ? "default" : "secondary"}
+                  >
+                    <Gauge className="h-4 w-4" />
+                    {profile?.performance_mode ? "Enabled" : "Enable"}
+                  </Button>
+                </div>
               </section>
 
               <section className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-3">

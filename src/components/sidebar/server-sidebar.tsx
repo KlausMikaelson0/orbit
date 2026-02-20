@@ -44,7 +44,8 @@ export function ServerSidebar({
     activeView === "FRIENDS" ||
     activeView === "DM_THREAD" ||
     activeView === "SHOP" ||
-    activeView === "QUESTS";
+    activeView === "QUESTS" ||
+    activeView === "LABS";
 
   return (
     <aside

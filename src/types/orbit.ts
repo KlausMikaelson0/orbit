@@ -1,4 +1,4 @@
-export type ChannelType = "TEXT" | "AUDIO" | "VIDEO";
+export type ChannelType = "TEXT" | "AUDIO" | "VIDEO" | "FORUM";
 export type MemberRole = "ADMIN" | "MODERATOR" | "GUEST";
 export type OrbitViewMode =
   | "SERVER"
@@ -6,7 +6,8 @@ export type OrbitViewMode =
   | "DM_THREAD"
   | "FRIENDS"
   | "SHOP"
-  | "QUESTS";
+  | "QUESTS"
+  | "LABS";
 export type RelationshipStatus = "PENDING" | "ACCEPTED" | "BLOCKED";
 export type OrbitThemePreset = "MIDNIGHT" | "ONYX" | "CYBERPUNK" | "CUSTOM";
 export type OrbitTaskStatus = "TODO" | "IN_PROGRESS" | "DONE";
@@ -19,6 +20,20 @@ export type OrbitQuestActionType =
   | "WATCH_AD"
   | "PLAY_SESSION"
   | "SOCIAL_SHARE";
+export type OrbitServerTemplateKey = "community" | "gaming" | "startup";
+export type OrbitEventType = "STAGE" | "LIVE" | "COMMUNITY";
+export type OrbitAchievementMetric =
+  | "MESSAGES"
+  | "LOGINS"
+  | "QUESTS"
+  | "VOICE_MINUTES"
+  | "SOCIAL";
+export type OrbitMarketplaceCategory =
+  | "UTILITY"
+  | "ENGAGEMENT"
+  | "MODERATION"
+  | "MONETIZATION"
+  | "AI";
 
 export interface OrbitProfile {
   id: string;
@@ -28,6 +43,7 @@ export interface OrbitProfile {
   avatar_url: string | null;
   active_background_slug?: string | null;
   active_background_css?: string | null;
+  performance_mode?: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -314,4 +330,219 @@ export interface OrbitQuestProgress {
   last_claimed_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface OrbitServerTemplate {
+  key: OrbitServerTemplateKey;
+  name: string;
+  description: string;
+  channels: Array<{ name: string; type: ChannelType }>;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitChannelPermission {
+  id: string;
+  server_id: string;
+  channel_id: string;
+  role: MemberRole;
+  can_view: boolean;
+  can_post: boolean;
+  can_connect: boolean;
+  can_manage: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitServerEvent {
+  id: string;
+  server_id: string;
+  channel_id: string | null;
+  host_profile_id: string;
+  event_type: OrbitEventType;
+  title: string;
+  description: string | null;
+  starts_at: string;
+  ends_at: string | null;
+  cover_image_url: string | null;
+  is_recording_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitForumTag {
+  id: string;
+  server_id: string;
+  slug: string;
+  label: string;
+  color_hex: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitForumPost {
+  id: string;
+  server_id: string;
+  channel_id: string;
+  author_profile_id: string;
+  title: string;
+  body: string;
+  pinned: boolean;
+  locked: boolean;
+  last_activity_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitForumReply {
+  id: string;
+  post_id: string;
+  author_profile_id: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitCallClip {
+  id: string;
+  server_id: string;
+  channel_id: string | null;
+  created_by: string;
+  title: string;
+  clip_url: string;
+  preview_image_url: string | null;
+  duration_seconds: number;
+  created_at: string;
+}
+
+export interface OrbitServerAiSettings {
+  server_id: string;
+  auto_moderation_enabled: boolean;
+  auto_summary_enabled: boolean;
+  ai_assistant_enabled: boolean;
+  smart_reply_enabled: boolean;
+  summarize_interval_minutes: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitSeason {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  starts_at: string;
+  ends_at: string;
+  xp_per_level: number;
+  max_level: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitSeasonProgress {
+  id: string;
+  profile_id: string;
+  season_id: string;
+  xp: number;
+  level: number;
+  claimed_level: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitAchievement {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  metric_type: OrbitAchievementMetric;
+  target_value: number;
+  reward_starbits: number;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitAchievementProgress {
+  id: string;
+  profile_id: string;
+  achievement_id: string;
+  progress_value: number;
+  unlocked_at: string | null;
+  claimed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitLeaderboardEntry {
+  profile_id: string;
+  points: number;
+  wins: number;
+  streak: number;
+  created_at: string;
+  updated_at: string;
+  profile?: OrbitProfile | null;
+}
+
+export interface OrbitCreatorTier {
+  id: string;
+  creator_profile_id: string;
+  server_id: string | null;
+  slug: string;
+  title: string;
+  monthly_price_starbits: number;
+  benefits: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitCreatorSupportSubscription {
+  id: string;
+  tier_id: string;
+  creator_profile_id: string;
+  supporter_profile_id: string;
+  status: "ACTIVE" | "CANCELED";
+  started_at: string;
+  renews_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitCreatorTip {
+  id: string;
+  creator_profile_id: string;
+  supporter_profile_id: string;
+  amount_starbits: number;
+  note: string | null;
+  created_at: string;
+}
+
+export interface OrbitMarketplaceApp {
+  slug: string;
+  name: string;
+  description: string;
+  category: OrbitMarketplaceCategory;
+  developer_name: string;
+  install_url: string | null;
+  icon_emoji: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitInstalledApp {
+  id: string;
+  server_id: string;
+  app_slug: string;
+  installed_by: string;
+  config: Record<string, unknown>;
+  created_at: string;
 }

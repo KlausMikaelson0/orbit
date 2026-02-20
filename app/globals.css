@@ -134,6 +134,27 @@ body {
   filter: blur(0);
 }
 
+[data-orbit-performance="on"] .orb-blur {
+  display: none;
+}
+
+[data-orbit-performance="on"] .glass-panel {
+  backdrop-filter: none;
+  box-shadow: none;
+  background: var(--orbit-panel-muted);
+}
+
+[data-orbit-performance="on"] .cosmic-grid {
+  background-size: 74px 74px;
+}
+
+[data-orbit-performance="on"] *,
+[data-orbit-performance="on"] *::before,
+[data-orbit-performance="on"] *::after {
+  animation: none !important;
+  transition-duration: 0ms !important;
+}
+
 @media (hover: none) {
   .privacy-shield .privacy-content {
     filter: none;
