@@ -61,8 +61,15 @@ async function restoreMovedPaths(moved) {
 async function run() {
   const moved = await moveForDesktopExport();
   try {
-    const command = process.platform === "win32" ? "npx.cmd" : "npx";
-    const result = spawnSync(command, ["next", "build"], {
+    const nextBin = path.join(
+      projectRoot,
+      "node_modules",
+      "next",
+      "dist",
+      "bin",
+      "next",
+    );
+    const result = spawnSync(process.execPath, [nextBin, "build"], {
       stdio: "inherit",
       cwd: projectRoot,
       env: {
@@ -70,6 +77,10 @@ async function run() {
         ORBIT_DESKTOP_EXPORT: "1",
       },
     });
+
+    if (result.error) {
+      throw result.error;
+    }
 
     await restoreMovedPaths(moved);
     process.exit(result.status ?? 1);
