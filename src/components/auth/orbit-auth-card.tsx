@@ -264,16 +264,6 @@ export function OrbitAuthCard() {
               {error}
             </p>
           ) : null}
-          {!isSupabaseReady ? (
-            <div className="mt-4 rounded-xl border border-amber-400/35 bg-amber-500/10 px-3 py-2">
-              <p className="text-xs text-amber-100">
-                Supabase is not configured yet. Open browser demo to preview the chat UI instantly.
-              </p>
-              <Button asChild className="mt-2 rounded-full" size="sm" variant="secondary">
-                <Link href="/demo">Open demo chat</Link>
-              </Button>
-            </div>
-          ) : null}
         </div>
 
         <div className="glass-panel flex flex-col justify-between rounded-3xl p-8">

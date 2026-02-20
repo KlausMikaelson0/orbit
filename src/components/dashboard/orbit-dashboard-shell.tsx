@@ -194,15 +194,6 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
   }, [supabase]);
 
   useEffect(() => {
-    if (loading) {
-      return;
-    }
-    if (!isSupabaseReady) {
-      router.replace("/demo");
-    }
-  }, [loading, router]);
-
-  useEffect(() => {
     if (!session) {
       return;
     }
@@ -236,10 +227,10 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             <Button asChild className="rounded-full" size="sm" variant="secondary">
-              <Link href="/demo">{t("landing.openInBrowser")}</Link>
+              <Link href="/auth">{t("dashboard.goToAuth")}</Link>
             </Button>
             <Button asChild className="rounded-full" size="sm" variant="ghost">
-              <Link href="/auth">{t("dashboard.goToAuth")}</Link>
+              <Link href="/">Back Home</Link>
             </Button>
           </div>
         </div>
