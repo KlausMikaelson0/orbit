@@ -131,7 +131,7 @@ export function OrbitShopView() {
     setStoreItems((itemResult.data ?? []) as OrbitStoreItem[]);
     setInventory((inventoryResult.data ?? []) as OrbitInventoryItem[]);
     setLoading(false);
-  }, [profile?.active_background_slug, profile?.id, supabase]);
+  }, [profile, supabase]);
 
   useEffect(() => {
     void fetchShopState();
