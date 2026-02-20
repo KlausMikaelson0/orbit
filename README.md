@@ -78,6 +78,30 @@ cp .env.example .env.local
 npm run dev
 ```
 
+## Why you see "Supabase setup required"
+
+If Orbit shows:
+
+> Supabase setup required  
+> Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY...
+
+that means the deployment environment is missing Supabase variables.
+
+### Fix on Vercel
+In Vercel Project Settings -> Environment Variables, add at least:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+Recommended full set for complete Orbit features:
+- `NEXT_PUBLIC_APP_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_LIVEKIT_URL`
+- `LIVEKIT_API_KEY`
+- `LIVEKIT_API_SECRET`
+- `GIPHY_API_KEY`
+
+Then redeploy the project.
+
 ## Desktop development (Electron)
 
 Run Orbit web + Electron shell together:
@@ -99,6 +123,23 @@ npm run electron-build
 ```
 
 This generates artifacts in `release/` (e.g. NSIS `.exe`, macOS `.dmg`).
+
+## Desktop downloads for all devices (Windows + macOS + Linux)
+
+Orbit now includes a GitHub Actions workflow:
+
+- `.github/workflows/desktop-multi-platform.yml`
+
+How to use:
+1. Push your code to GitHub.
+2. Open **Actions** tab.
+3. Run **Desktop Multi-Platform Builds** (or push a tag like `v1.0.0`).
+4. Download artifacts:
+   - `orbit-desktop-windows-latest` -> `.exe` (NSIS)
+   - `orbit-desktop-macos-latest` -> `.dmg`
+   - `orbit-desktop-ubuntu-latest` -> `.AppImage`
+
+This is the reliable way to get installers for all devices, not just one OS.
 
 ## Environment variables
 
