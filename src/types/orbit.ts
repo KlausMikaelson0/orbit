@@ -5,6 +5,8 @@ export type RelationshipStatus = "PENDING" | "ACCEPTED" | "BLOCKED";
 export type OrbitThemePreset = "MIDNIGHT" | "ONYX" | "CYBERPUNK" | "CUSTOM";
 export type OrbitTaskStatus = "TODO" | "IN_PROGRESS" | "DONE";
 export type OrbitLocale = "en" | "ar" | "tr";
+export type OrbitSubscriptionTier = "FREE" | "PULSE" | "PULSE_PLUS";
+export type OrbitSubscriptionStatus = "ACTIVE" | "PAST_DUE" | "CANCELED";
 
 export interface OrbitProfile {
   id: string;
@@ -12,6 +14,8 @@ export interface OrbitProfile {
   tag: string | null;
   full_name: string | null;
   avatar_url: string | null;
+  active_background_slug?: string | null;
+  active_background_css?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -225,4 +229,44 @@ export interface OrbitActiveCallSession {
   room_id: string;
   thread_id: string | null;
   joined_at: string;
+}
+
+export interface OrbitProfileSubscription {
+  profile_id: string;
+  tier: OrbitSubscriptionTier;
+  status: OrbitSubscriptionStatus;
+  renews_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitProfileWallet {
+  profile_id: string;
+  starbits_balance: number;
+  lifetime_earned: number;
+  last_daily_claim_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type OrbitStoreCategory = "BACKGROUND" | "PROFILE_FLARE" | "SFX_PACK";
+
+export interface OrbitStoreItem {
+  slug: string;
+  name: string;
+  description: string;
+  category: OrbitStoreCategory;
+  rarity: string;
+  price_starbits: number;
+  css_background: string | null;
+  preview_emoji: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrbitInventoryItem {
+  item_slug: string;
+  purchased_at: string;
 }

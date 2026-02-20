@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { Loader2 } from "lucide-react";
+import { Check, Loader2, Sparkles, Store, Wallet } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,15 @@ import { useOrbitLocale } from "@/src/hooks/use-orbit-locale";
 import { useOrbitRuntime } from "@/src/hooks/use-orbit-runtime";
 import { getOrbitSupabaseClient } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
-import type { ChannelType } from "@/src/types/orbit";
+import type {
+  ChannelType,
+  OrbitInventoryItem,
+  OrbitProfile,
+  OrbitProfileSubscription,
+  OrbitProfileWallet,
+  OrbitStoreItem,
+  OrbitSubscriptionTier,
+} from "@/src/types/orbit";
 
 interface ActionResult {
   error?: string;
@@ -40,6 +48,75 @@ interface OrbitModalsProps {
     type: ChannelType;
   }) => Promise<ActionResult>;
   joinServerByInvite: (inviteCode: string) => Promise<ActionResult>;
+}
+
+const DAILY_STARBITS_REWARD = 120;
+const DAILY_CLAIM_COOLDOWN_HOURS = 20;
+
+const PULSE_PLANS: Array<{
+  tier: OrbitSubscriptionTier;
+  label: string;
+  price: string;
+  perks: string[];
+}> = [
+  {
+    tier: "FREE",
+    label: "Orbit Free",
+    price: "$0",
+    perks: ["720p stream quality", "Basic profile personalization", "Standard support queue"],
+  },
+  {
+    tier: "PULSE",
+    label: "Orbit Pulse",
+    price: "$5.99",
+    perks: ["1080p streams", "Animated profile flair", "Priority support queue"],
+  },
+  {
+    tier: "PULSE_PLUS",
+    label: "Orbit Pulse+",
+    price: "$11.99",
+    perks: ["4K-ready stream unlock", "Cross-server stickers", "Early access feature labs"],
+  },
+];
+
+interface DailyClaimWindow {
+  canClaim: boolean;
+  nextClaimAt: Date | null;
+}
+
+function getDailyClaimWindow(lastClaimAt: string | null): DailyClaimWindow {
+  if (!lastClaimAt) {
+    return { canClaim: true, nextClaimAt: null };
+  }
+
+  const claimAt = new Date(lastClaimAt);
+  if (Number.isNaN(claimAt.getTime())) {
+    return { canClaim: true, nextClaimAt: null };
+  }
+
+  const nextClaimAt = new Date(
+    claimAt.getTime() + DAILY_CLAIM_COOLDOWN_HOURS * 60 * 60 * 1000,
+  );
+  return {
+    canClaim: Date.now() >= nextClaimAt.getTime(),
+    nextClaimAt,
+  };
+}
+
+function formatTierLabel(tier: OrbitSubscriptionTier | null | undefined) {
+  if (!tier) {
+    return "Free";
+  }
+
+  if (tier === "PULSE") {
+    return "Orbit Pulse";
+  }
+
+  if (tier === "PULSE_PLUS") {
+    return "Orbit Pulse+";
+  }
+
+  return "Orbit Free";
 }
 
 export function OrbitModals({
@@ -71,15 +148,34 @@ export function OrbitModals({
   } | null>(null);
   const { t } = useOrbitLocale();
   const { isElectron, platformLabel } = useOrbitRuntime();
-  const { themePreset, customThemeCss, setThemePreset, setCustomThemeCss } =
+  const {
+    profile,
+    themePreset,
+    customThemeCss,
+    setProfile,
+    setThemePreset,
+    setCustomThemeCss,
+  } =
     useOrbitNavStore(
       useShallow((state) => ({
+        profile: state.profile,
         themePreset: state.themePreset,
         customThemeCss: state.customThemeCss,
+        setProfile: state.setProfile,
         setThemePreset: state.setThemePreset,
         setCustomThemeCss: state.setCustomThemeCss,
       })),
     );
+  const [loadingCommerce, setLoadingCommerce] = useState(false);
+  const [commerceError, setCommerceError] = useState<string | null>(null);
+  const [commerceSuccess, setCommerceSuccess] = useState<string | null>(null);
+  const [switchingTier, setSwitchingTier] = useState<OrbitSubscriptionTier | null>(null);
+  const [claimingDaily, setClaimingDaily] = useState(false);
+  const [storeActionKey, setStoreActionKey] = useState<string | null>(null);
+  const [subscription, setSubscription] = useState<OrbitProfileSubscription | null>(null);
+  const [wallet, setWallet] = useState<OrbitProfileWallet | null>(null);
+  const [storeItems, setStoreItems] = useState<OrbitStoreItem[]>([]);
+  const [inventory, setInventory] = useState<OrbitInventoryItem[]>([]);
 
   const createServerOpen = isOpen && type === "createServer";
   const createChannelOpen = isOpen && type === "createChannel";
@@ -87,6 +183,14 @@ export function OrbitModals({
   const settingsOpen = isOpen && type === "settings";
 
   const modalServerId = useMemo(() => data.serverId ?? null, [data.serverId]);
+  const ownedItemSlugs = useMemo(
+    () => new Set(inventory.map((entry) => entry.item_slug)),
+    [inventory],
+  );
+  const dailyClaimWindow = useMemo(
+    () => getDailyClaimWindow(wallet?.last_daily_claim_at ?? null),
+    [wallet?.last_daily_claim_at],
+  );
 
   function resetAndClose() {
     setError(null);
@@ -100,6 +204,11 @@ export function OrbitModals({
     setMfaSuccess(null);
     setPendingTotp(null);
     setMfaCode("");
+    setCommerceError(null);
+    setCommerceSuccess(null);
+    setSwitchingTier(null);
+    setClaimingDaily(false);
+    setStoreActionKey(null);
     onClose();
   }
 
@@ -138,12 +247,223 @@ export function OrbitModals({
     setLoadingMfa(false);
   }, [supabase]);
 
+  const fetchCommerceState = useCallback(async () => {
+    setLoadingCommerce(true);
+    setCommerceError(null);
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setCommerceError(userError?.message ?? "Unable to load wallet and store.");
+      setLoadingCommerce(false);
+      return;
+    }
+
+    const [subscriptionResult, walletResult, storeResult, inventoryResult] =
+      await Promise.all([
+        supabase
+          .from("profile_subscriptions")
+          .select("*")
+          .eq("profile_id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("profile_wallets")
+          .select("*")
+          .eq("profile_id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("orbit_store_items")
+          .select("*")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true }),
+        supabase
+          .from("profile_store_inventory")
+          .select("item_slug, purchased_at")
+          .eq("profile_id", user.id)
+          .order("purchased_at", { ascending: false }),
+      ]);
+
+    if (subscriptionResult.error) {
+      setCommerceError(subscriptionResult.error.message);
+      setLoadingCommerce(false);
+      return;
+    }
+
+    if (walletResult.error) {
+      setCommerceError(walletResult.error.message);
+      setLoadingCommerce(false);
+      return;
+    }
+
+    if (storeResult.error) {
+      setCommerceError(storeResult.error.message);
+      setLoadingCommerce(false);
+      return;
+    }
+
+    if (inventoryResult.error) {
+      setCommerceError(inventoryResult.error.message);
+      setLoadingCommerce(false);
+      return;
+    }
+
+    setSubscription((subscriptionResult.data ?? null) as OrbitProfileSubscription | null);
+    setWallet((walletResult.data ?? null) as OrbitProfileWallet | null);
+    setStoreItems((storeResult.data ?? []) as OrbitStoreItem[]);
+    setInventory((inventoryResult.data ?? []) as OrbitInventoryItem[]);
+    setLoadingCommerce(false);
+  }, [supabase]);
+
+  async function switchSubscriptionTier(nextTier: OrbitSubscriptionTier) {
+    const currentTier = subscription?.tier ?? "FREE";
+    if (nextTier === currentTier) {
+      return;
+    }
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+    if (userError || !user) {
+      setCommerceError(userError?.message ?? "You must be signed in.");
+      return;
+    }
+
+    setSwitchingTier(nextTier);
+    setCommerceError(null);
+    setCommerceSuccess(null);
+
+    const renewsAt =
+      nextTier === "FREE"
+        ? null
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data, error } = await supabase
+      .from("profile_subscriptions")
+      .update({
+        tier: nextTier,
+        status: "ACTIVE",
+        renews_at: renewsAt,
+      })
+      .eq("profile_id", user.id)
+      .select("*")
+      .maybeSingle();
+
+    if (error || !data) {
+      setCommerceError(
+        error?.message ?? "Subscription row is missing. Run Phase 7 migration.",
+      );
+      setSwitchingTier(null);
+      return;
+    }
+
+    setSubscription(data as OrbitProfileSubscription);
+    setCommerceSuccess(`Plan updated: ${formatTierLabel(nextTier)}.`);
+    setSwitchingTier(null);
+  }
+
+  async function claimDailyStarbits() {
+    setClaimingDaily(true);
+    setCommerceError(null);
+    setCommerceSuccess(null);
+
+    const { data, error } = await supabase.rpc("claim_daily_starbits", {
+      reward: DAILY_STARBITS_REWARD,
+    });
+
+    if (error) {
+      setCommerceError(error.message);
+      setClaimingDaily(false);
+      return;
+    }
+
+    const row =
+      (Array.isArray(data) ? data[0] : data) as
+        | { balance?: number; rewarded?: number; next_claim_at?: string }
+        | null;
+    const rewarded = typeof row?.rewarded === "number" ? row.rewarded : 0;
+
+    if (rewarded > 0) {
+      setCommerceSuccess(`Daily reward claimed: +${rewarded} Starbits.`);
+    } else if (row?.next_claim_at) {
+      const nextLabel = new Date(row.next_claim_at).toLocaleString();
+      setCommerceSuccess(`Already claimed. Next claim available at ${nextLabel}.`);
+    } else {
+      setCommerceSuccess("Daily reward is on cooldown.");
+    }
+
+    await fetchCommerceState();
+    setClaimingDaily(false);
+  }
+
+  async function buyStoreItem(itemSlug: string) {
+    setStoreActionKey(`buy:${itemSlug}`);
+    setCommerceError(null);
+    setCommerceSuccess(null);
+
+    const { data, error } = await supabase.rpc("buy_store_item", {
+      target_slug: itemSlug,
+    });
+
+    if (error) {
+      setCommerceError(error.message);
+      setStoreActionKey(null);
+      return;
+    }
+
+    const row =
+      (Array.isArray(data) ? data[0] : data) as
+        | { balance?: number; item_slug?: string }
+        | null;
+    const purchasedSlug = row?.item_slug ?? itemSlug;
+    const purchasedName =
+      storeItems.find((item) => item.slug === purchasedSlug)?.name ?? "Store item";
+
+    setCommerceSuccess(`${purchasedName} purchased successfully.`);
+    await fetchCommerceState();
+    setStoreActionKey(null);
+  }
+
+  async function equipBackground(itemSlug: string | null) {
+    setStoreActionKey(`equip:${itemSlug ?? "default"}`);
+    setCommerceError(null);
+    setCommerceSuccess(null);
+
+    const { error } = await supabase.rpc("set_active_store_background", {
+      target_slug: itemSlug,
+    });
+
+    if (error) {
+      setCommerceError(error.message);
+      setStoreActionKey(null);
+      return;
+    }
+
+    if (profile) {
+      const selectedItem = itemSlug
+        ? storeItems.find((item) => item.slug === itemSlug)
+        : null;
+      setProfile({
+        ...(profile as OrbitProfile),
+        active_background_slug: itemSlug,
+        active_background_css: selectedItem?.css_background ?? null,
+      });
+    }
+
+    setCommerceSuccess(itemSlug ? "Background equipped." : "Default background restored.");
+    setStoreActionKey(null);
+  }
+
   useEffect(() => {
     if (!settingsOpen) {
       return;
     }
     void fetchMfaState();
-  }, [fetchMfaState, settingsOpen]);
+    void fetchCommerceState();
+  }, [fetchCommerceState, fetchMfaState, settingsOpen]);
 
   async function enrollTotp() {
     setMfaError(null);
@@ -481,6 +801,216 @@ export function OrbitModals({
                     ? "Orbit desktop mode is active with tray persistence."
                     : "Install Orbit from the landing page to unlock desktop runtime."}
                 </p>
+              </section>
+
+              <section className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
+                    Orbit Pulse Membership
+                  </p>
+                  <span className="rounded-full border border-violet-400/35 bg-violet-500/15 px-2.5 py-1 text-[10px] uppercase tracking-wide text-violet-100">
+                    Current: {formatTierLabel(subscription?.tier)}
+                  </span>
+                </div>
+                <p className="text-sm text-zinc-200">
+                  Pulse unlocks premium stream quality, identity cosmetics, and faster support.
+                </p>
+                <div className="grid gap-2 lg:grid-cols-3">
+                  {PULSE_PLANS.map((plan) => {
+                    const currentTier = subscription?.tier ?? "FREE";
+                    const isCurrent = currentTier === plan.tier;
+                    const isWorking = switchingTier === plan.tier;
+                    return (
+                      <div
+                        className="space-y-2 rounded-xl border border-white/10 bg-black/30 p-3"
+                        key={plan.tier}
+                      >
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold text-zinc-100">{plan.label}</p>
+                          <p className="text-xs text-zinc-400">{plan.price}/mo</p>
+                        </div>
+                        <ul className="space-y-1 text-[11px] text-zinc-300">
+                          {plan.perks.map((perk) => (
+                            <li className="flex items-start gap-1.5" key={perk}>
+                              <Check className="mt-0.5 h-3.5 w-3.5 text-emerald-300" />
+                              <span>{perk}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <Button
+                          className="w-full rounded-lg"
+                          disabled={isCurrent || isWorking}
+                          onClick={() => void switchSubscriptionTier(plan.tier)}
+                          size="sm"
+                          type="button"
+                          variant={isCurrent ? "secondary" : "default"}
+                        >
+                          {isWorking ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                          {isCurrent ? "Current plan" : `Switch to ${plan.label}`}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-zinc-500">
+                  Billing checkout is mocked for now. This controls feature flags and UI entitlements.
+                </p>
+              </section>
+
+              <section className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
+                      Orbit Vault Store
+                    </p>
+                    <p className="text-sm text-zinc-200">
+                      Spend Starbits on backgrounds and upcoming cosmetics.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-full border border-amber-300/35 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-100">
+                    <Wallet className="h-3.5 w-3.5" />
+                    <span>{(wallet?.starbits_balance ?? 0).toLocaleString()} Starbits</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    className="rounded-full"
+                    disabled={!dailyClaimWindow.canClaim || claimingDaily}
+                    onClick={() => void claimDailyStarbits()}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    {claimingDaily ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    {dailyClaimWindow.canClaim
+                      ? `Claim ${DAILY_STARBITS_REWARD} Starbits`
+                      : "Daily claim cooling down"}
+                  </Button>
+                  <Button
+                    className="rounded-full"
+                    disabled={loadingCommerce}
+                    onClick={() => void fetchCommerceState()}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Store className="h-4 w-4" />
+                    Refresh vault
+                  </Button>
+                  {profile?.active_background_slug ? (
+                    <Button
+                      className="rounded-full"
+                      disabled={storeActionKey === "equip:default"}
+                      onClick={() => void equipBackground(null)}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      {storeActionKey === "equip:default" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : null}
+                      Use default background
+                    </Button>
+                  ) : null}
+                </div>
+
+                {dailyClaimWindow.nextClaimAt && !dailyClaimWindow.canClaim ? (
+                  <p className="text-[11px] text-zinc-500">
+                    Next daily reward unlocks at {dailyClaimWindow.nextClaimAt.toLocaleString()}.
+                  </p>
+                ) : null}
+
+                {loadingCommerce ? (
+                  <p className="text-sm text-zinc-300">Loading Orbit Vault inventory...</p>
+                ) : (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {storeItems.map((item) => {
+                      const owned = ownedItemSlugs.has(item.slug);
+                      const isBackground = item.category === "BACKGROUND";
+                      const isEquipped =
+                        isBackground && profile?.active_background_slug === item.slug;
+                      const buyActionKey = `buy:${item.slug}`;
+                      const equipActionKey = `equip:${item.slug}`;
+                      const isWorking =
+                        storeActionKey === buyActionKey || storeActionKey === equipActionKey;
+
+                      return (
+                        <article
+                          className="space-y-2 rounded-xl border border-white/10 bg-black/35 p-3"
+                          key={item.slug}
+                        >
+                          <div
+                            className="relative h-20 rounded-lg border border-white/10"
+                            style={
+                              isBackground && item.css_background
+                                ? { background: item.css_background }
+                                : undefined
+                            }
+                          >
+                            {!isBackground ? (
+                              <div className="flex h-full items-center justify-center text-2xl">
+                                {item.preview_emoji ?? "FX"}
+                              </div>
+                            ) : null}
+                            <span className="absolute right-2 top-2 rounded-full border border-black/30 bg-black/40 px-2 py-0.5 text-[10px] uppercase tracking-wide text-zinc-100">
+                              {item.rarity}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-zinc-100">{item.name}</p>
+                            <p className="text-xs text-zinc-300">{item.description}</p>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-zinc-400">
+                              {item.price_starbits.toLocaleString()} Starbits
+                            </p>
+                            <Button
+                              className="rounded-full"
+                              disabled={
+                                isWorking ||
+                                (owned && !isBackground) ||
+                                (!owned && (wallet?.starbits_balance ?? 0) < item.price_starbits)
+                              }
+                              onClick={() => {
+                                if (owned && isBackground) {
+                                  void equipBackground(item.slug);
+                                  return;
+                                }
+                                if (!owned) {
+                                  void buyStoreItem(item.slug);
+                                }
+                              }}
+                              size="sm"
+                              type="button"
+                              variant={isEquipped ? "secondary" : "default"}
+                            >
+                              {isWorking ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                              {owned
+                                ? isBackground
+                                  ? isEquipped
+                                    ? "Equipped"
+                                    : "Equip"
+                                  : "Owned"
+                                : "Buy"}
+                            </Button>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {commerceError ? (
+                  <p className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                    {commerceError}
+                  </p>
+                ) : null}
+                {commerceSuccess ? (
+                  <p className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                    {commerceSuccess}
+                  </p>
+                ) : null}
               </section>
 
               <section className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-3">

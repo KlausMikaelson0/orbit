@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { CSSProperties, ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -67,6 +67,7 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
     activeServerId,
     activeChannelId,
     activeDmThreadId,
+    profile,
     servers,
     channelsByServer,
     dmConversations,
@@ -80,6 +81,7 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
       activeServerId: state.activeServerId,
       activeChannelId: state.activeChannelId,
       activeDmThreadId: state.activeDmThreadId,
+      profile: state.profile,
       servers: state.servers,
       channelsByServer: state.channelsByServer,
       dmConversations: state.dmConversations,
@@ -140,6 +142,14 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
     servers,
   ]);
   const serverCount = servers.length;
+  const dashboardBackgroundStyle = useMemo<CSSProperties | undefined>(() => {
+    const customBackground = profile?.active_background_css?.trim();
+    if (!customBackground) {
+      return undefined;
+    }
+
+    return { background: customBackground };
+  }, [profile?.active_background_css]);
 
   useEffect(() => {
     if (!isSupabaseReady) {
@@ -217,7 +227,10 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#06070b] text-white">
+    <div
+      className="relative min-h-screen overflow-hidden bg-[#06070b] text-white"
+      style={dashboardBackgroundStyle}
+    >
       <div className="cosmic-grid absolute inset-0 opacity-35" />
       <div className="orb-blur absolute -left-20 top-16 h-80 w-80 bg-violet-500/30" />
       <div className="orb-blur absolute -right-24 bottom-0 h-96 w-96 bg-fuchsia-500/20" />

@@ -7,6 +7,7 @@ Orbit is a realtime productivity-social platform built in phases:
 - **Phase 4**: Social engine (DMs, friends, command palette, notifications, privacy mode)
 - **Phase 5**: Theme engine, Orbit-Bot commands/moderation, channel tasks, threaded replies, PWA readiness
 - **Phase 6**: Mobile gestures, developer webhook API, onboarding + analytics, security hardening
+- **Phase 7**: Orbit Pulse subscriptions, Starbits wallet economy, Orbit Vault cosmetics store
 
 ## Stack
 
@@ -55,6 +56,12 @@ Orbit is a realtime productivity-social platform built in phases:
 - **Image moderation mock** for uploads and webhook attachments
 - **PWA icon pack** for iOS/Android install experience
 - **Electron desktop runtime** (system tray, frameless shell, unified web/desktop UX)
+
+### Monetization Foundation (Phase 7)
+- **Orbit Pulse plans**: Free / Pulse / Pulse+ membership model
+- **Starbits wallet** with daily claim loop and transaction history
+- **Orbit Vault store** with purchasable cosmetic inventory
+- **Background cosmetics** users can buy, own, and equip per profile
 
 ## Local development
 
@@ -117,6 +124,7 @@ Run migrations in order from `supabase/migrations/`:
 3. `20260219_orbit_phase4_social.sql`
 4. `20260219_orbit_phase5_power_user.sql`
 5. `20260219_orbit_phase6_growth.sql`
+6. `20260220_orbit_phase7_monetization.sql`
 
 Phase 5 adds:
 - `orbit_bots` (per-server bot metadata)
@@ -126,6 +134,13 @@ Phase 5 adds:
 
 Phase 6 adds:
 - `server_webhooks` (bot/webhook integration records)
+
+Phase 7 adds:
+- `profile_subscriptions` (membership tier + status)
+- `profile_wallets` and `profile_wallet_transactions` (Starbits economy ledger)
+- `orbit_store_items` and `profile_store_inventory` (store catalog + owned cosmetics)
+- profile background personalization columns on `profiles`
+- RPCs: `claim_daily_starbits`, `buy_store_item`, `set_active_store_background`
 
 Also make sure Supabase Auth providers include:
 - Email/Password
@@ -232,7 +247,7 @@ This runs lint/build before `vercel --prod`.
 
 ## Final Go-Live Checklist (Vercel)
 
-- [ ] All migrations applied through Phase 6
+- [ ] All migrations applied through Phase 7
 - [ ] Supabase Auth providers configured (Email/Password + Google + MFA)
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` added in Vercel
 - [ ] LiveKit keys configured and `/api/livekit/token` verified
