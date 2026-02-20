@@ -24,7 +24,11 @@ function resolveMetadataBase(rawUrl: string | undefined) {
   }
 }
 
-const metadataBase = resolveMetadataBase(process.env.NEXT_PUBLIC_APP_URL);
+const metadataBase = resolveMetadataBase(
+  process.env.NEXT_PUBLIC_APP_URL ??
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ??
+    process.env.VERCEL_URL,
+);
 
 export const metadata: Metadata = {
   title: "Orbit — The Evolution of Communication",

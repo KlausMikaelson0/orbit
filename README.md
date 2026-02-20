@@ -322,3 +322,15 @@ This runs lint/build before `vercel --prod`.
 - [ ] PWA install verified on iOS Safari + Android Chrome
 - [ ] Browser notifications permission flow validated
 - [ ] Privacy mode, rate limits, and moderation checks smoke-tested
+
+## Google Search visibility checklist
+
+If you want Orbit to appear like a product page in Google (open page + download or continue in browser):
+
+1. Deploy publicly (no authentication wall on the whole site).
+2. Set `NEXT_PUBLIC_APP_URL` to your production domain.
+3. Verify:
+   - `https://your-domain/robots.txt`
+   - `https://your-domain/sitemap.xml`
+4. Submit the domain and sitemap to Google Search Console.
+5. Wait for indexing/crawl refresh (can take from minutes to days).
