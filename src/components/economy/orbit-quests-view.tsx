@@ -4,7 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Gift, Sparkles, Store, Trophy, Video } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { getOrbitSupabaseClient } from "@/src/lib/supabase-browser";
+import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
+import {
+  ORBIT_LOCAL_PROFILE,
+  getOrbitLocalQuestProgress,
+  getOrbitLocalQuests,
+} from "@/src/lib/orbit-local-data";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type { OrbitProfileWallet, OrbitQuest, OrbitQuestProgress } from "@/src/types/orbit";
 
@@ -59,6 +64,22 @@ export function OrbitQuestsView() {
   const fetchQuestState = useCallback(async () => {
     setLoading(true);
     setError(null);
+
+    if (!isSupabaseReady) {
+      const now = new Date().toISOString();
+      setQuests(getOrbitLocalQuests());
+      setProgressRows(getOrbitLocalQuestProgress());
+      setWallet({
+        profile_id: ORBIT_LOCAL_PROFILE.id,
+        starbits_balance: 980,
+        lifetime_earned: 980,
+        last_daily_claim_at: null,
+        created_at: now,
+        updated_at: now,
+      });
+      setLoading(false);
+      return;
+    }
 
     const {
       data: { user },
@@ -118,6 +139,52 @@ export function OrbitQuestsView() {
     setError(null);
     setSuccess(null);
 
+    if (!isSupabaseReady) {
+      setProgressRows((currentRows) => {
+        const now = new Date().toISOString();
+        const existing = currentRows.find((row) => row.quest_id === quest.id);
+        if (!existing) {
+          const progressCount = 1;
+          return [
+            ...currentRows,
+            {
+              id: `local-quest-progress-${crypto.randomUUID().slice(0, 8)}`,
+              profile_id: ORBIT_LOCAL_PROFILE.id,
+              quest_id: quest.id,
+              progress_count: progressCount,
+              target_count_snapshot: quest.target_count,
+              completed_at: progressCount >= quest.target_count ? now : null,
+              last_action_at: now,
+              last_claimed_at: null,
+              created_at: now,
+              updated_at: now,
+            },
+          ];
+        }
+        const progressCount = Math.min(
+          existing.target_count_snapshot,
+          existing.progress_count + 1,
+        );
+        return currentRows.map((row) =>
+          row.id === existing.id
+            ? {
+                ...row,
+                progress_count: progressCount,
+                completed_at:
+                  progressCount >= existing.target_count_snapshot
+                    ? row.completed_at ?? now
+                    : null,
+                last_action_at: now,
+                updated_at: now,
+              }
+            : row,
+        );
+      });
+      setSuccess(`Mission progress updated: ${quest.title}`);
+      setActionKey(null);
+      return;
+    }
+
     const { error } = await supabase.rpc("orbit_log_quest_action", {
       target_slug: quest.slug,
       action_type: quest.action_type,
@@ -140,6 +207,46 @@ export function OrbitQuestsView() {
     setActionKey(`claim:${quest.slug}`);
     setError(null);
     setSuccess(null);
+
+    if (!isSupabaseReady) {
+      const row = progressByQuestId[quest.id];
+      if (!row?.completed_at) {
+        setError("Complete the quest before claiming reward.");
+        setActionKey(null);
+        return;
+      }
+      if (row.last_claimed_at) {
+        setError("Quest reward already claimed.");
+        setActionKey(null);
+        return;
+      }
+
+      const now = new Date().toISOString();
+      setProgressRows((currentRows) =>
+        currentRows.map((item) =>
+          item.id === row.id
+            ? {
+                ...item,
+                last_claimed_at: now,
+                updated_at: now,
+              }
+            : item,
+        ),
+      );
+      setWallet((currentWallet) =>
+        currentWallet
+          ? {
+              ...currentWallet,
+              starbits_balance: currentWallet.starbits_balance + quest.reward_starbits,
+              lifetime_earned: currentWallet.lifetime_earned + quest.reward_starbits,
+              updated_at: now,
+            }
+          : currentWallet,
+      );
+      setSuccess(`Reward claimed: +${quest.reward_starbits} Starbits.`);
+      setActionKey(null);
+      return;
+    }
 
     const { data, error } = await supabase.rpc("orbit_claim_quest_reward", {
       target_slug: quest.slug,

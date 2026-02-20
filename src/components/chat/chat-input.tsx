@@ -17,10 +17,11 @@ import {
 } from "@/src/lib/orbit-bot";
 import { extractOrbitUrls, primeOrbitLinkPreview } from "@/src/lib/orbit-link-preview";
 import { moderateOrbitImageFilename } from "@/src/lib/orbit-image-moderation";
-import { getOrbitSupabaseClient } from "@/src/lib/supabase-browser";
+import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type {
   OrbitAttachmentMeta,
+  OrbitDmMessage,
   OrbitMember,
   OrbitMessageView,
   OrbitProfile,
@@ -87,6 +88,10 @@ export function ChatInput({
   }, [attachment]);
 
   async function uploadAttachment(file: File) {
+    if (!isSupabaseReady) {
+      throw new Error("Attachments require cloud storage configuration.");
+    }
+
     if (!conversationId || !profile) {
       throw new Error("Missing conversation context.");
     }
@@ -151,6 +156,64 @@ export function ChatInput({
       if (firstUrl) {
         primeOrbitLinkPreview(firstUrl);
       }
+    }
+
+    if (!isSupabaseReady) {
+      const now = new Date().toISOString();
+      const localMessage: OrbitMessageView = {
+        id: `local-${crypto.randomUUID()}`,
+        content: messageText || null,
+        file_url: options.optimisticFileUrl ?? options.resolvedFileUrl,
+        member_id: mode === "channel" ? member?.id ?? null : null,
+        channel_id: mode === "channel" ? conversationId : null,
+        profile_id: mode === "dm" ? profile.id : profile.id,
+        thread_id: mode === "dm" ? conversationId : null,
+        thread_parent_id: mode === "channel" ? threadParentId : null,
+        created_at: now,
+        updated_at: now,
+        optimistic: false,
+        moderation: messageText
+          ? (() => {
+              const signal = scoreOrbitToxicity(messageText);
+              return signal.flagged
+                ? { score: signal.score, reason: signal.reason }
+                : null;
+            })()
+          : null,
+        attachment: options.attachmentMeta,
+        author: {
+          member: mode === "channel" ? member : null,
+          profile,
+        },
+      };
+      upsertMessage(conversationKey, localMessage);
+
+      if (mode === "dm") {
+        const state = useOrbitNavStore.getState();
+        const currentConversation = state.dmConversations.find(
+          (conversation) => conversation.thread.id === conversationId,
+        );
+        if (currentConversation) {
+          const lastMessage: OrbitDmMessage = {
+            id: localMessage.id,
+            thread_id: conversationId,
+            profile_id: profile.id,
+            content: localMessage.content,
+            file_url: localMessage.file_url,
+            created_at: now,
+            updated_at: now,
+          };
+          state.upsertDmConversation({
+            ...currentConversation,
+            thread: {
+              ...currentConversation.thread,
+              updated_at: now,
+            },
+            lastMessage,
+          });
+        }
+      }
+      return;
     }
 
     const tempId = `temp-${crypto.randomUUID()}`;
@@ -340,67 +403,89 @@ export function ChatInput({
 
       if (command.kind === "summarize") {
         const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-        const { data, error: summaryFetchError } = await supabase
-          .from("messages")
-          .select(
-            "id, content, file_url, member_id, channel_id, thread_parent_id, created_at, updated_at, member:members(id, role, profile_id, server_id, created_at, updated_at, profile:profiles(id, username, tag, full_name, avatar_url, created_at, updated_at))",
-          )
-          .eq("channel_id", conversationId)
-          .gte("created_at", since)
-          .order("created_at", { ascending: true })
-          .limit(700);
+        let summaryInput: OrbitMessageView[] = cachedMessages.filter(
+          (message) =>
+            message.created_at >= since && !message.thread_parent_id,
+        );
 
-        if (summaryFetchError) {
-          setError(summaryFetchError.message);
-          setSending(false);
-          return;
+        if (isSupabaseReady) {
+          const { data, error: summaryFetchError } = await supabase
+            .from("messages")
+            .select(
+              "id, content, file_url, member_id, channel_id, thread_parent_id, created_at, updated_at, member:members(id, role, profile_id, server_id, created_at, updated_at, profile:profiles(id, username, tag, full_name, avatar_url, created_at, updated_at))",
+            )
+            .eq("channel_id", conversationId)
+            .gte("created_at", since)
+            .order("created_at", { ascending: true })
+            .limit(700);
+
+          if (summaryFetchError) {
+            setError(summaryFetchError.message);
+            setSending(false);
+            return;
+          }
+
+          const rows = (data ?? []) as unknown as Array<{
+            id: string;
+            content: string | null;
+            file_url: string | null;
+            member_id: string;
+            channel_id: string;
+            thread_parent_id: string | null;
+            created_at: string;
+            updated_at: string;
+            member?: {
+              profile_id: string;
+              profile?: OrbitProfile | OrbitProfile[] | null;
+            } | null;
+          }>;
+
+          const normalized = rows.map((row) => ({
+            id: row.id,
+            content: row.content,
+            file_url: row.file_url,
+            member_id: row.member_id,
+            channel_id: row.channel_id,
+            profile_id: row.member?.profile_id ?? null,
+            thread_id: null,
+            thread_parent_id: row.thread_parent_id,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            author: {
+              member: null,
+              profile: Array.isArray(row.member?.profile)
+                ? row.member?.profile[0] ?? null
+                : row.member?.profile ?? null,
+            },
+          })) satisfies OrbitMessageView[];
+
+          if (normalized.length) {
+            summaryInput = normalized;
+          }
         }
 
-        const rows = (data ?? []) as unknown as Array<{
-          id: string;
-          content: string | null;
-          file_url: string | null;
-          member_id: string;
-          channel_id: string;
-          thread_parent_id: string | null;
-          created_at: string;
-          updated_at: string;
-          member?: {
-            profile_id: string;
-            profile?: OrbitProfile | OrbitProfile[] | null;
-          } | null;
-        }>;
-
-        const normalized = rows.map((row) => ({
-          id: row.id,
-          content: row.content,
-          file_url: row.file_url,
-          member_id: row.member_id,
-          channel_id: row.channel_id,
-          profile_id: row.member?.profile_id ?? null,
-          thread_id: null,
-          thread_parent_id: row.thread_parent_id,
-          created_at: row.created_at,
-          updated_at: row.updated_at,
-          author: {
-            member: null,
-            profile: Array.isArray(row.member?.profile)
-              ? row.member?.profile[0] ?? null
-              : row.member?.profile ?? null,
-          },
-        })) satisfies OrbitMessageView[];
-
-        const summaryInput = normalized.length
-          ? normalized
-          : cachedMessages.filter(
-              (message) =>
-                message.created_at >= since && !message.thread_parent_id,
-            );
         const summary = await requestOrbitSummary(summaryInput);
         contentToSend = `🤖 **Orbit-Bot /summarize (24h)**\n\n${summary}`;
       } else if (command.kind === "poll") {
         contentToSend = buildOrbitPollMarkdown(command.question, command.options);
       } else if (command.kind === "clear") {
+        if (!isSupabaseReady) {
+          const localRows = [...cachedMessages]
+            .sort((a, b) => b.created_at.localeCompare(a.created_at))
+            .slice(0, command.count);
+          for (const row of localRows) {
+            removeMessage(conversationKey, row.id);
+          }
+          setNotice(`Orbit-Bot cleared ${localRows.length} messages.`);
+          setContent("");
+          setAttachment(null);
+          if (attachmentInputRef.current) {
+            attachmentInputRef.current.value = "";
+          }
+          setSending(false);
+          return;
+        }
+
         const { data: latestRows, error: latestError } = await supabase
           .from("messages")
           .select("id")
@@ -493,7 +578,10 @@ export function ChatInput({
   }
 
   const isDisabled =
-    !conversationId || !profile || (mode === "channel" && !member) || sending;
+    !conversationId ||
+    !profile ||
+    (isSupabaseReady && mode === "channel" && !member) ||
+    sending;
 
   return (
     <form className="mt-3" onSubmit={submitMessage}>

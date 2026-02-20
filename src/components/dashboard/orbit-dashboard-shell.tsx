@@ -56,6 +56,7 @@ const OrbitCommandPalette = dynamic(
 export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
   const router = useRouter();
+  const isLocalMode = !isSupabaseReady;
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const { onOpen } = useModal();
@@ -91,9 +92,10 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
       togglePrivacyMode: state.togglePrivacyMode,
     })),
   );
+  const workspaceUser = isLocalMode ? null : (session?.user ?? null);
   const { loadingServers, createServer, createChannel, joinServerByInvite } =
-    useOrbitWorkspace(session?.user ?? null);
-  const social = useOrbitSocial(session?.user ?? null);
+    useOrbitWorkspace(workspaceUser);
+  const social = useOrbitSocial(workspaceUser);
   const navSummary = useMemo(() => {
     if (activeView === "FRIENDS") {
       return {
@@ -201,7 +203,8 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
   }, [session]);
 
   async function signOut() {
-    if (!isSupabaseReady) {
+    if (isLocalMode) {
+      router.push("/");
       return;
     }
 
@@ -217,28 +220,7 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
     );
   }
 
-  if (!isSupabaseReady) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#06070b] px-4 text-white">
-        <div className="glass-panel max-w-xl rounded-3xl p-8">
-          <h1 className="mb-3 text-2xl font-semibold">{t("dashboard.supabaseSetupRequired")}</h1>
-          <p className="text-sm text-zinc-300">
-            {t("dashboard.supabaseSetupHelp")}
-          </p>
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Button asChild className="rounded-full" size="sm" variant="secondary">
-              <Link href="/auth">{t("dashboard.goToAuth")}</Link>
-            </Button>
-            <Button asChild className="rounded-full" size="sm" variant="ghost">
-              <Link href="/">Back Home</Link>
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!session) {
+  if (!session && !isLocalMode) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#06070b] px-4 text-white">
         <div className="glass-panel max-w-lg rounded-3xl p-8 text-center">
@@ -362,6 +344,11 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
                   <Sparkles className="h-4 w-4" />
                   Orbit AI Soon
                 </Button>
+                {isLocalMode ? (
+                  <span className="hidden rounded-full border border-amber-400/35 bg-amber-500/10 px-2.5 py-1 text-[10px] uppercase tracking-wide text-amber-100 sm:inline-flex">
+                    Local browser mode
+                  </span>
+                ) : null}
                 <Button className="rounded-full" onClick={() => void signOut()} size="icon" variant="ghost">
                   <LogOut className="h-4 w-4" />
                 </Button>
@@ -381,7 +368,7 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
             </div>
           </section>
 
-          <MembersSidebar user={session.user} />
+          <MembersSidebar user={session?.user ?? null} />
         </div>
 
         <Dialog
@@ -431,7 +418,7 @@ export function OrbitDashboardShell({ children }: OrbitDashboardShellProps) {
               direction="right"
               onDismiss={() => setMobilePanelOpen("members", false)}
             >
-              <MembersSidebar mobile user={session.user} />
+              <MembersSidebar mobile user={session?.user ?? null} />
             </SwipeDismissable>
           </DialogContent>
         </Dialog>

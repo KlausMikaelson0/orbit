@@ -5,8 +5,9 @@ import { Gem, Search, Sparkles, Store, Wallet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getOrbitSupabaseClient } from "@/src/lib/supabase-browser";
+import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
+import { getOrbitLocalStoreItems } from "@/src/lib/orbit-local-data";
 import type {
   OrbitInventoryItem,
   OrbitProfile,
@@ -61,6 +62,27 @@ export function OrbitShopView() {
     setLoading(true);
     setError(null);
 
+    if (!isSupabaseReady) {
+      const now = new Date().toISOString();
+      const localItems = getOrbitLocalStoreItems();
+      setStoreItems(localItems);
+      setWallet({
+        profile_id: profile?.id ?? "local-user",
+        starbits_balance: 1450,
+        lifetime_earned: 1450,
+        last_daily_claim_at: null,
+        created_at: now,
+        updated_at: now,
+      });
+      setInventory(
+        profile?.active_background_slug
+          ? [{ item_slug: profile.active_background_slug, purchased_at: now }]
+          : [],
+      );
+      setLoading(false);
+      return;
+    }
+
     const {
       data: { user },
       error: userError,
@@ -109,7 +131,7 @@ export function OrbitShopView() {
     setStoreItems((itemResult.data ?? []) as OrbitStoreItem[]);
     setInventory((inventoryResult.data ?? []) as OrbitInventoryItem[]);
     setLoading(false);
-  }, [supabase]);
+  }, [profile?.active_background_slug, profile?.id, supabase]);
 
   useEffect(() => {
     void fetchShopState();
@@ -119,6 +141,34 @@ export function OrbitShopView() {
     setActionKey(`buy:${item.slug}`);
     setError(null);
     setSuccess(null);
+
+    if (!isSupabaseReady) {
+      const currentWallet = wallet;
+      if (!currentWallet) {
+        setError("Wallet is not available.");
+        setActionKey(null);
+        return;
+      }
+      if (currentWallet.starbits_balance < item.price_starbits) {
+        setError("Not enough Starbits.");
+        setActionKey(null);
+        return;
+      }
+      setWallet({
+        ...currentWallet,
+        starbits_balance: currentWallet.starbits_balance - item.price_starbits,
+        updated_at: new Date().toISOString(),
+      });
+      setInventory((current) => {
+        if (current.some((row) => row.item_slug === item.slug)) {
+          return current;
+        }
+        return [...current, { item_slug: item.slug, purchased_at: new Date().toISOString() }];
+      });
+      setSuccess(`${item.name} purchased successfully.`);
+      setActionKey(null);
+      return;
+    }
 
     const { error } = await supabase.rpc("buy_store_item", {
       target_slug: item.slug,
@@ -140,6 +190,19 @@ export function OrbitShopView() {
     setActionKey(`equip:${actionSlug}`);
     setError(null);
     setSuccess(null);
+
+    if (!isSupabaseReady) {
+      if (profile) {
+        setProfile({
+          ...(profile as OrbitProfile),
+          active_background_slug: item?.slug ?? null,
+          active_background_css: item?.css_background ?? null,
+        });
+      }
+      setSuccess(item ? `${item.name} equipped.` : "Default background restored.");
+      setActionKey(null);
+      return;
+    }
 
     const { error } = await supabase.rpc("set_active_store_background", {
       target_slug: item?.slug ?? null,

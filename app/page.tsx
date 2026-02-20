@@ -93,7 +93,7 @@ const softwareSchema = {
   operatingSystem: "Windows, macOS, Linux, iOS, Android, Web",
   description,
   url: appUrl,
-  installUrl: `${appUrl}/auth`,
+  installUrl: `${appUrl}/dashboard`,
   downloadUrl: [DOWNLOAD_URLS.windows, DOWNLOAD_URLS.mac, DOWNLOAD_URLS.linux],
   offers: {
     "@type": "Offer",

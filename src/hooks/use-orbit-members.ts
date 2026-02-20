@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 
-import { getOrbitSupabaseClient } from "@/src/lib/supabase-browser";
+import { getOrbitLocalMembers } from "@/src/lib/orbit-local-data";
+import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type {
   OrbitMember,
@@ -48,6 +49,21 @@ export function useOrbitMembers(user: User | null, serverId: string | null) {
       return;
     }
 
+    if (!isSupabaseReady) {
+      setLoading(true);
+      setMembers(getOrbitLocalMembers(serverId));
+      setBot({
+        id: "local-bot",
+        server_id: serverId,
+        name: "Orbit Bot",
+        provider: "local",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     const [membersResult, botResult] = await Promise.all([
       supabase
@@ -87,6 +103,9 @@ export function useOrbitMembers(user: User | null, serverId: string | null) {
   }, [fetchMembers]);
 
   useEffect(() => {
+    if (!isSupabaseReady) {
+      return;
+    }
     if (!serverId) {
       return;
     }
@@ -126,6 +145,9 @@ export function useOrbitMembers(user: User | null, serverId: string | null) {
   }, [fetchMembers, serverId, supabase]);
 
   useEffect(() => {
+    if (!isSupabaseReady) {
+      return;
+    }
     if (!serverId || !user) {
       setOnlineProfileIds(new Set());
       return;

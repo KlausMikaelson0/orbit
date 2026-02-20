@@ -17,7 +17,7 @@ import {
   notifyOrbitMessage,
   playOrbitPingSound,
 } from "@/src/lib/orbit-notifications";
-import { getOrbitSupabaseClient } from "@/src/lib/supabase-browser";
+import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type { OrbitLinkPreview, OrbitMessage, OrbitMessageView } from "@/src/types/orbit";
 
@@ -216,7 +216,7 @@ export function ChatMessages({
   );
 
   useEffect(() => {
-    if (!conversationId || useCacheOnly) {
+    if (!isSupabaseReady || !conversationId || useCacheOnly) {
       return;
     }
 
@@ -224,7 +224,7 @@ export function ChatMessages({
   }, [conversationId, fetchMessages, useCacheOnly]);
 
   useEffect(() => {
-    if (!conversationId || !conversationKey || useCacheOnly) {
+    if (!isSupabaseReady || !conversationId || !conversationKey || useCacheOnly) {
       return;
     }
 

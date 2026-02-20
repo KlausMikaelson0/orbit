@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { getOrbitSupabaseClient } from "@/src/lib/supabase-browser";
+import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type { OrbitChannelTask, OrbitProfile, OrbitTaskStatus } from "@/src/types/orbit";
 
@@ -47,6 +47,8 @@ function normalizeTask(row: TaskRow): OrbitChannelTask {
   };
 }
 
+const LOCAL_TASK_STORE = new Map<string, OrbitChannelTask[]>();
+
 export function useChannelTasks(channelId: string | null, profileId: string | null) {
   const supabase = useMemo(() => getOrbitSupabaseClient(), []);
   const profile = useOrbitNavStore((state) => state.profile);
@@ -57,6 +59,14 @@ export function useChannelTasks(channelId: string | null, profileId: string | nu
   const fetchTasks = useCallback(async () => {
     if (!channelId) {
       setTasks([]);
+      return;
+    }
+
+    if (!isSupabaseReady) {
+      setLoadingTasks(true);
+      setTaskError(null);
+      setTasks(LOCAL_TASK_STORE.get(channelId) ?? []);
+      setLoadingTasks(false);
       return;
     }
 
@@ -86,6 +96,9 @@ export function useChannelTasks(channelId: string | null, profileId: string | nu
   }, [fetchTasks]);
 
   useEffect(() => {
+    if (!isSupabaseReady) {
+      return;
+    }
     if (!channelId) {
       return;
     }
@@ -117,6 +130,28 @@ export function useChannelTasks(channelId: string | null, profileId: string | nu
       const trimmed = content.trim();
       if (!trimmed) {
         return { error: "Task content is required." };
+      }
+
+      if (!isSupabaseReady) {
+        const now = new Date().toISOString();
+        const task: OrbitChannelTask = {
+          id: `local-task-${crypto.randomUUID().slice(0, 8)}`,
+          channel_id: channelId,
+          creator_profile_id: profileId,
+          content: trimmed,
+          status: "TODO",
+          due_at: null,
+          completed_at: null,
+          created_at: now,
+          updated_at: now,
+          creator: profile,
+        };
+        const nextTasks = [...(LOCAL_TASK_STORE.get(channelId) ?? []), task].sort((a, b) =>
+          a.created_at.localeCompare(b.created_at),
+        );
+        LOCAL_TASK_STORE.set(channelId, nextTasks);
+        setTasks(nextTasks);
+        return {};
       }
 
       const tempId = `temp-task-${crypto.randomUUID()}`;
@@ -169,6 +204,25 @@ export function useChannelTasks(channelId: string | null, profileId: string | nu
       const completedAt = status === "DONE" ? new Date().toISOString() : null;
       setTaskError(null);
 
+      if (!isSupabaseReady) {
+        if (!channelId) {
+          return { error: "Channel context is missing." };
+        }
+        const nextTasks = (LOCAL_TASK_STORE.get(channelId) ?? []).map((item) =>
+          item.id === taskId
+            ? {
+                ...item,
+                status,
+                completed_at: completedAt,
+                updated_at: new Date().toISOString(),
+              }
+            : item,
+        );
+        LOCAL_TASK_STORE.set(channelId, nextTasks);
+        setTasks(nextTasks);
+        return {};
+      }
+
       const previous = tasks;
       setTasks((current) =>
         current.map((item) =>
@@ -197,11 +251,23 @@ export function useChannelTasks(channelId: string | null, profileId: string | nu
       }
       return {};
     },
-    [supabase, tasks],
+    [channelId, supabase, tasks],
   );
 
   const removeTask = useCallback(
     async (taskId: string): Promise<ChannelTaskResult> => {
+      if (!isSupabaseReady) {
+        if (!channelId) {
+          return { error: "Channel context is missing." };
+        }
+        const nextTasks = (LOCAL_TASK_STORE.get(channelId) ?? []).filter(
+          (item) => item.id !== taskId,
+        );
+        LOCAL_TASK_STORE.set(channelId, nextTasks);
+        setTasks(nextTasks);
+        return {};
+      }
+
       const previous = tasks;
       setTasks((current) => current.filter((item) => item.id !== taskId));
       const { error } = await supabase.from("channel_tasks").delete().eq("id", taskId);
@@ -211,7 +277,7 @@ export function useChannelTasks(channelId: string | null, profileId: string | nu
       }
       return {};
     },
-    [supabase, tasks],
+    [channelId, supabase, tasks],
   );
 
   return {

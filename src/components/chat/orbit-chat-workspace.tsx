@@ -26,6 +26,7 @@ import { OrbitShopView } from "@/src/components/economy/orbit-shop-view";
 import { OrbitLabsView } from "@/src/components/labs/orbit-labs-view";
 import { useOrbitSocialContext } from "@/src/context/orbit-social-context";
 import { requestOrbitSummary } from "@/src/lib/orbit-bot";
+import { isSupabaseReady } from "@/src/lib/supabase-browser";
 import { DmHomeView } from "@/src/components/social/dm-home-view";
 import { FriendsView } from "@/src/components/social/friends-view";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
@@ -42,6 +43,7 @@ const LivekitChannelRoom = dynamic(
 const EMPTY_MESSAGES: OrbitMessageView[] = [];
 
 export function OrbitChatWorkspace() {
+  const isLocalMode = !isSupabaseReady;
   const {
     sendFriendRequest,
     acceptFriendRequest,
@@ -387,7 +389,19 @@ export function OrbitChatWorkspace() {
       ) : activeView === "SHOP" ? (
         <OrbitShopView />
       ) : activeView === "LABS" ? (
-        <OrbitLabsView />
+        isLocalMode ? (
+          <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/20 text-center text-zinc-300">
+            <div className="max-w-lg px-5">
+              <p className="text-sm font-semibold text-zinc-100">Labs is in cloud mode</p>
+              <p className="mt-2 text-sm text-zinc-400">
+                Configure Supabase to unlock realtime Labs controls, marketplace install state,
+                and server automation settings.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <OrbitLabsView />
+        )
       ) : activeView === "DM_HOME" ? (
         <DmHomeView onOpenFriends={setActiveFriends} />
       ) : activeView === "DM_THREAD" ? (
@@ -422,23 +436,49 @@ export function OrbitChatWorkspace() {
           </div>
         </div>
       ) : activeChannel.type === "AUDIO" || activeChannel.type === "VIDEO" ? (
-        <div className="min-h-0 flex-1">
-          <LivekitChannelRoom
-            channelId={activeChannel.id}
-            channelType={activeChannel.type}
-            displayName={
-              profile?.full_name ?? profile?.username ?? currentMember?.id ?? "Orbit User"
-            }
-            serverId={activeServer.id}
-            userId={profile?.id ?? currentMember?.profile_id ?? "guest"}
-          />
-        </div>
+        isLocalMode ? (
+          <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/20 text-center text-zinc-300">
+            <div className="max-w-lg px-5">
+              <p className="text-sm font-semibold text-zinc-100">
+                Voice/video requires cloud configuration
+              </p>
+              <p className="mt-2 text-sm text-zinc-400">
+                Add LiveKit + Supabase environment variables to enable live channel calls.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1">
+            <LivekitChannelRoom
+              channelId={activeChannel.id}
+              channelType={activeChannel.type}
+              displayName={
+                profile?.full_name ?? profile?.username ?? currentMember?.id ?? "Orbit User"
+              }
+              serverId={activeServer.id}
+              userId={profile?.id ?? currentMember?.profile_id ?? "guest"}
+            />
+          </div>
+        )
       ) : activeChannel.type === "FORUM" ? (
-        <OrbitForumView
-          channelId={activeChannel.id}
-          profileId={profile?.id ?? null}
-          serverId={activeServer.id}
-        />
+        isLocalMode ? (
+          <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/20 text-center text-zinc-300">
+            <div className="max-w-lg px-5">
+              <p className="text-sm font-semibold text-zinc-100">
+                Forum channels unlock in cloud mode
+              </p>
+              <p className="mt-2 text-sm text-zinc-400">
+                Connect Supabase to persist forum posts, tags, and replies across users.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <OrbitForumView
+            channelId={activeChannel.id}
+            profileId={profile?.id ?? null}
+            serverId={activeServer.id}
+          />
+        )
       ) : (
         channelSurface === "TASKS" && isTextServerChannel ? (
           <ChannelTasksPanel

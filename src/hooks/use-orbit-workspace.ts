@@ -4,7 +4,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 
 import { generateInviteCode } from "@/lib/utils";
-import { getOrbitSupabaseClient } from "@/src/lib/supabase-browser";
+import {
+  ORBIT_LOCAL_PROFILE,
+  getOrbitLocalChannels,
+  getOrbitLocalDmConversations,
+  getOrbitLocalMessageCache,
+  getOrbitLocalOnlineIds,
+  getOrbitLocalRelationships,
+  getOrbitLocalServerMemberships,
+} from "@/src/lib/orbit-local-data";
+import { getOrbitSupabaseClient, isSupabaseReady } from "@/src/lib/supabase-browser";
 import { useOrbitNavStore } from "@/src/stores/use-orbit-nav-store";
 import type {
   ChannelType,
@@ -60,6 +69,10 @@ export function useOrbitWorkspace(user: User | null) {
   const setServersWithMemberships = useOrbitNavStore(
     (state) => state.setServersWithMemberships,
   );
+  const setDmConversations = useOrbitNavStore((state) => state.setDmConversations);
+  const setRelationships = useOrbitNavStore((state) => state.setRelationships);
+  const setOnlineProfileIds = useOrbitNavStore((state) => state.setOnlineProfileIds);
+  const setMessages = useOrbitNavStore((state) => state.setMessages);
   const setChannels = useOrbitNavStore((state) => state.setChannels);
   const setActiveServer = useOrbitNavStore((state) => state.setActiveServer);
   const setActiveChannel = useOrbitNavStore((state) => state.setActiveChannel);
@@ -69,7 +82,56 @@ export function useOrbitWorkspace(user: User | null) {
   const [loadingServers, setLoadingServers] = useState(true);
   const [loadingChannels, setLoadingChannels] = useState(false);
 
+  const bootstrapLocalState = useCallback(() => {
+    const current = useOrbitNavStore.getState();
+    if (current.profile?.id === ORBIT_LOCAL_PROFILE.id && current.servers.length > 0) {
+      return;
+    }
+
+    const memberships = getOrbitLocalServerMemberships();
+    setProfile(ORBIT_LOCAL_PROFILE);
+    setServersWithMemberships(memberships);
+    setDmConversations(getOrbitLocalDmConversations());
+    setRelationships(getOrbitLocalRelationships());
+    setOnlineProfileIds(getOrbitLocalOnlineIds());
+
+    for (const row of memberships) {
+      setChannels(row.server.id, getOrbitLocalChannels(row.server.id));
+    }
+
+    const localCache = getOrbitLocalMessageCache();
+    for (const [conversationKey, messages] of Object.entries(localCache)) {
+      setMessages(conversationKey, messages);
+    }
+
+    const firstServerId = memberships[0]?.server.id ?? null;
+    const firstChannelId = firstServerId
+      ? getOrbitLocalChannels(firstServerId)[0]?.id ?? null
+      : null;
+    if (firstServerId) {
+      setActiveServer(firstServerId);
+    }
+    if (firstChannelId) {
+      setActiveChannel(firstChannelId);
+    }
+  }, [
+    setActiveChannel,
+    setActiveServer,
+    setChannels,
+    setDmConversations,
+    setMessages,
+    setOnlineProfileIds,
+    setProfile,
+    setRelationships,
+    setServersWithMemberships,
+  ]);
+
   const ensureProfile = useCallback(async () => {
+    if (!isSupabaseReady) {
+      bootstrapLocalState();
+      return;
+    }
+
     if (!user) {
       return;
     }
@@ -102,9 +164,15 @@ export function useOrbitWorkspace(user: User | null) {
     if (data) {
       setProfile(data as OrbitProfile);
     }
-  }, [setProfile, supabase, user]);
+  }, [bootstrapLocalState, setProfile, supabase, user]);
 
   const fetchServers = useCallback(async () => {
+    if (!isSupabaseReady) {
+      bootstrapLocalState();
+      setLoadingServers(false);
+      return;
+    }
+
     if (!user) {
       setServersWithMemberships([]);
       setActiveServer(null);
@@ -156,11 +224,24 @@ export function useOrbitWorkspace(user: User | null) {
     }
 
     setLoadingServers(false);
-  }, [setActiveServer, setServersWithMemberships, supabase, user]);
+  }, [
+    bootstrapLocalState,
+    setActiveServer,
+    setServersWithMemberships,
+    supabase,
+    user,
+  ]);
 
   const fetchChannels = useCallback(
     async (serverId: string | null) => {
       if (!serverId) {
+        return;
+      }
+
+      if (!isSupabaseReady) {
+        setLoadingChannels(true);
+        setChannels(serverId, getOrbitLocalChannels(serverId));
+        setLoadingChannels(false);
         return;
       }
 
@@ -183,6 +264,9 @@ export function useOrbitWorkspace(user: User | null) {
   }, [ensureProfile, fetchServers]);
 
   useEffect(() => {
+    if (!isSupabaseReady) {
+      return;
+    }
     if (!user) {
       return;
     }
@@ -222,6 +306,9 @@ export function useOrbitWorkspace(user: User | null) {
   }, [activeServerId, fetchChannels, setActiveChannel]);
 
   useEffect(() => {
+    if (!isSupabaseReady) {
+      return;
+    }
     if (!activeServerId) {
       return;
     }
@@ -251,6 +338,51 @@ export function useOrbitWorkspace(user: User | null) {
       imageUrl?: string;
       templateKey?: OrbitServerTemplateKey | null;
     }) => {
+      if (!isSupabaseReady) {
+        const trimmedName = values.name.trim();
+        if (!trimmedName) {
+          return { error: "Server name is required." } satisfies WorkspaceActionResult;
+        }
+
+        const now = new Date().toISOString();
+        const server: OrbitServer = {
+          id: `local-server-${crypto.randomUUID().slice(0, 8)}`,
+          name: trimmedName,
+          image_url: values.imageUrl?.trim() || null,
+          invite_code: generateInviteCode(),
+          owner_id: ORBIT_LOCAL_PROFILE.id,
+          created_at: now,
+          updated_at: now,
+        };
+        const member: OrbitMember = {
+          id: `local-member-${crypto.randomUUID().slice(0, 8)}`,
+          role: "ADMIN",
+          profile_id: ORBIT_LOCAL_PROFILE.id,
+          server_id: server.id,
+          created_at: now,
+          updated_at: now,
+        };
+        const templateChannels = values.templateKey
+          ? SERVER_TEMPLATE_CHANNELS[values.templateKey] ?? DEFAULT_SERVER_CHANNELS
+          : DEFAULT_SERVER_CHANNELS;
+        const channels = templateChannels.map((channel, index) => ({
+          id: `local-channel-${crypto.randomUUID().slice(0, 8)}-${index}`,
+          server_id: server.id,
+          name: channel.name,
+          type: channel.type,
+          created_at: now,
+          updated_at: now,
+        })) satisfies OrbitChannel[];
+
+        upsertServer(server, member);
+        for (const channel of channels) {
+          upsertChannel(channel);
+        }
+        setActiveServer(server.id);
+        setActiveChannel(channels[0]?.id ?? null);
+        return { data: server } satisfies WorkspaceActionResult<OrbitServer>;
+      }
+
       if (!user) {
         return { error: "You must be signed in." } satisfies WorkspaceActionResult;
       }
@@ -344,6 +476,26 @@ export function useOrbitWorkspace(user: User | null) {
       name: string;
       type: ChannelType;
     }) => {
+      if (!isSupabaseReady) {
+        const trimmedName = values.name.trim();
+        if (!trimmedName) {
+          return { error: "Channel name is required." } satisfies WorkspaceActionResult;
+        }
+
+        const now = new Date().toISOString();
+        const channel: OrbitChannel = {
+          id: `local-channel-${crypto.randomUUID().slice(0, 8)}`,
+          server_id: values.serverId,
+          name: trimmedName,
+          type: values.type,
+          created_at: now,
+          updated_at: now,
+        };
+        upsertChannel(channel);
+        setActiveChannel(channel.id);
+        return { data: channel } satisfies WorkspaceActionResult<OrbitChannel>;
+      }
+
       const trimmedName = values.name.trim();
       if (!trimmedName) {
         return { error: "Channel name is required." } satisfies WorkspaceActionResult;
@@ -375,6 +527,37 @@ export function useOrbitWorkspace(user: User | null) {
 
   const joinServerByInvite = useCallback(
     async (inviteCode: string) => {
+      if (!isSupabaseReady) {
+        const normalizedCode = inviteCode.trim().toUpperCase();
+        if (!normalizedCode) {
+          return { error: "Invite code is required." } satisfies WorkspaceActionResult;
+        }
+
+        const state = useOrbitNavStore.getState();
+        const target = state.servers.find((server) => server.invite_code === normalizedCode);
+        if (!target) {
+          return { error: "Invite code is invalid." } satisfies WorkspaceActionResult;
+        }
+
+        const now = new Date().toISOString();
+        const localMember: OrbitMember = {
+          id: `local-member-${crypto.randomUUID().slice(0, 8)}`,
+          role: "GUEST",
+          profile_id: ORBIT_LOCAL_PROFILE.id,
+          server_id: target.id,
+          created_at: now,
+          updated_at: now,
+        };
+
+        upsertServer(target, localMember);
+        setActiveServer(target.id);
+        const firstChannel = (state.channelsByServer[target.id] ?? [])[0];
+        if (firstChannel) {
+          setActiveChannel(firstChannel.id);
+        }
+        return { data: target } satisfies WorkspaceActionResult<OrbitServer>;
+      }
+
       if (!user) {
         return { error: "You must be signed in." } satisfies WorkspaceActionResult;
       }
@@ -444,7 +627,15 @@ export function useOrbitWorkspace(user: User | null) {
 
       return { data: server as OrbitServer } satisfies WorkspaceActionResult<OrbitServer>;
     },
-    [fetchChannels, fetchServers, setActiveServer, supabase, upsertServer, user],
+    [
+      fetchChannels,
+      fetchServers,
+      setActiveChannel,
+      setActiveServer,
+      supabase,
+      upsertServer,
+      user,
+    ],
   );
 
   return {
