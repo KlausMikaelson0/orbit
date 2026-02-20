@@ -324,8 +324,8 @@ export function getOrbitLocalMessageCache(): Record<string, OrbitMessageView[]> 
 }
 
 export function getOrbitLocalMembers(serverId: string): OrbitMemberWithProfile[] {
-  const base: Record<string, OrbitMemberWithProfile[]> = {
-    "local-server-hq": [
+  if (serverId === "local-server-hq") {
+    return [
       {
         member: LOCAL_MEMBERS[0],
         profile: ORBIT_LOCAL_PROFILE,
@@ -336,7 +336,7 @@ export function getOrbitLocalMembers(serverId: string): OrbitMemberWithProfile[]
           id: "local-member-hq-nora",
           role: "MODERATOR",
           profile_id: ORBIT_LOCAL_DIRECTORY[0].id,
-          server_id,
+          server_id: "local-server-hq",
           created_at: TS,
           updated_at: TS,
         },
@@ -348,15 +348,18 @@ export function getOrbitLocalMembers(serverId: string): OrbitMemberWithProfile[]
           id: "local-member-hq-mika",
           role: "GUEST",
           profile_id: ORBIT_LOCAL_DIRECTORY[1].id,
-          server_id,
+          server_id: "local-server-hq",
           created_at: TS,
           updated_at: TS,
         },
         profile: ORBIT_LOCAL_DIRECTORY[1],
         online: false,
       },
-    ],
-    "local-server-creators": [
+    ];
+  }
+
+  if (serverId === "local-server-creators") {
+    return [
       {
         member: LOCAL_MEMBERS[1],
         profile: ORBIT_LOCAL_PROFILE,
@@ -367,17 +370,17 @@ export function getOrbitLocalMembers(serverId: string): OrbitMemberWithProfile[]
           id: "local-member-creator-rayan",
           role: "MODERATOR",
           profile_id: ORBIT_LOCAL_DIRECTORY[2].id,
-          server_id,
+          server_id: "local-server-creators",
           created_at: TS,
           updated_at: TS,
         },
         profile: ORBIT_LOCAL_DIRECTORY[2],
         online: true,
       },
-    ],
-  };
+    ];
+  }
 
-  return base[serverId] ?? [];
+  return [];
 }
 
 export function getOrbitLocalStoreItems(): OrbitStoreItem[] {
